@@ -21,13 +21,13 @@ Após isso, rode o comando:
 
 Rode o comando para a execução do programa compilado:
 
-`make run GRAMMAR=<caminho_da_linguagem>.g`
+`make run GRAMMAR=grammar/Go_Lexer.g`
 
 ## Inputs
 
-Alguns exemplos possuem casos de teste em uma pasta "inputs". Rode-os com o seguinte comando:
+Para rodar o programa usando inputs, modifique a variavel FILE:
 
-`make run GRAMMAR=<caminho_da_linguagem>.g FILE=../inputs/<nome_do_input>.ezl`
+`make run GRAMMAR=grammar/Go_Lexer.g FILE=../inputs/<nome_do_input>.go`
 
 Note que o arquivo deve ser acessado com ../ já que o programa roda a partir do diretório auxiliar lexer.
 
