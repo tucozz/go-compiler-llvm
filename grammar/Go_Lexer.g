@@ -9,7 +9,7 @@ SWITCH   : 'switch' ;
 CASE     : 'case' ;
 DEFAULT  : 'default' ;
 FOR      : 'for' ;
-CONTINUE : 'conrinue' ;
+CONTINUE : 'continue' ;
 BREAK    : 'break' ;
 RANGE    : 'range' ;
 
