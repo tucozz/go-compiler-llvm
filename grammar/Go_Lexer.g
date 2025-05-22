@@ -41,8 +41,8 @@ LETHAN   : '<=' ;
 AND      : '&&' ;
 OR       : '||' ;
 NOT      : '!' ;
-KW_TRUE    : 'true' ;
-KW_FALSE   : 'false' ;
+KW_TRUE  : 'true' ;
+KW_FALSE : 'false' ;
 
 PLUS      : '+' ;
 MINUS     : '-' ;
@@ -62,12 +62,13 @@ COMMA     : ',' ;
 
 fragment DIGITS : [0-9]+ ;
 
-POS_INT : DIGITS ;
-NEG_INT : '-' DIGITS;
+POS_INT  : DIGITS ;
+NEG_INT  : '-' DIGITS;
 POS_REAL : DIGITS '.' DIGITS ;
 NEG_REAL : '-' DIGITS '.' DIGITS ;
 
-STRINGF   : '"' ~["]* '"' ;
-ID        : [a-zA-Z]+ ;
-COMMENT_A : '//' ~[\n]* ;
-COMMENT_B : '/*' ~[*/]* '*/';
+STRINGF    : '"' ~["]* '"' ;
+ID         : [a-zA-Z_][a-zA-Z0-9_]* ;
+COMMENT_A  : '//' ~[\n]* ;
+COMMENT_B  : '/*' ~[*/]* '*/';
+STRUCT_ACCESS : ID ('.' ID)* 
