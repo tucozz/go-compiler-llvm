@@ -67,8 +67,8 @@ NEG_INT  : '-' DIGITS;
 POS_REAL : DIGITS '.' DIGITS ;
 NEG_REAL : '-' DIGITS '.' DIGITS ;
 
-STRINGF    : '"' ~["]* '"' ;
-ID         : [a-zA-Z_][a-zA-Z0-9_]* ;
-COMMENT_A  : '//' ~[\n]* ;
-COMMENT_B  : '/*' ~[*/]* '*/';
-STRUCT_ACCESS : ID ('.' ID)* 
+STRINGF       : '"' ~["]* '"' ;
+ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
+COMMENT_A     : '//' ~[\n]* ;
+COMMENT_B     : '/*' ~[*/]* '*/';
+STRUCT_ACCESS : ID ('.' ID)* ;
