@@ -20,7 +20,7 @@ find "$TEST_DIR" -type f -name "*.go" | while read -r FILE_PATH; do
     echo "Executando: $FILE_PATH"
 
     # Executa o lexer e salva a saída no output.txt ao lado do .go
-    make run GRAMMAR=$GRAMMAR FILE="../$REL_PATH" > "$OUTPUT_FILE" 2>&1
+    make run GRAMMAR=$GRAMMAR FILE="../$REL_PATH" > "$OUTPUT_FILE" 2>&1 --no-print-directory 
 done
 
 echo "Todos os testes foram executados. Cada resultado foi salvo no respectivo diretório."
