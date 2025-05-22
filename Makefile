@@ -44,3 +44,11 @@ run:
 # Remove os arquivos gerados pelo ANTLR
 clean:
 	@rm -rf $(GEN_PATH)
+
+# Torna os scripts executáveis
+fix-permissions:
+	chmod +x run_all_tests.sh compare_outputs.sh
+
+test: fix-permissions
+	@scripts/generate_outputs.sh
+	@scripts/test_diff.sh
