@@ -31,11 +31,11 @@ all: antlr javac
 
 # Executa o ANTLR para compilar a gramática
 antlr:
-	cd $(GEN_DIR) && $(ANTLR4) -o lexer $(notdir $(GRAMMAR))
+	@cd $(GEN_DIR) && $(ANTLR4) -o lexer $(notdir $(GRAMMAR))
 
 # Executa o javac para compilar os arquivos gerados
 javac:
-	$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)/*.java
+	@$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)/*.java
 
 # Executa o lexer. Comando: $ make run GRAMMAR=subdir/Exemplo01.g FILE=arquivo_de_teste
 run:
@@ -47,8 +47,8 @@ clean:
 
 # Torna os scripts executáveis
 fix-permissions:
-	chmod +x run_all_tests.sh compare_outputs.sh
+	@chmod +x generate_outputs.sh test_diff.sh
 
 test: fix-permissions
-	@scripts/generate_outputs.sh
-	@scripts/test_diff.sh
+	@./generate_outputs.sh
+	@./test_diff.sh

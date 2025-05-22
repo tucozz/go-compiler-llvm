@@ -64,15 +64,16 @@ C_BRA_END : '}' ;
 SEMICOLON : ';' ;
 COMMA     : ',' ;
 
+STRINGF       : '"' ~["]* '"' ;
+ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
+COMMENT_A     : '//' ~[\n]* ;
+COMMENT_B     : '/*' ~[*/]* '*/';
+STRUCT_ACCESS : ID ('.' ID)* ;
+
+
 fragment DIGITS : [0-9]+ ;
 
 POS_INT  : DIGITS ;
 NEG_INT  : '-' DIGITS;
 POS_REAL : DIGITS '.' DIGITS ;
 NEG_REAL : '-' DIGITS '.' DIGITS ;
-
-STRINGF       : '"' ~["]* '"' ;
-ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
-COMMENT_A     : '//' ~[\n]* ;
-COMMENT_B     : '/*' ~[*/]* '*/';
-STRUCT_ACCESS : ID ('.' ID)* ;
