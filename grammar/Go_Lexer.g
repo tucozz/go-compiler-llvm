@@ -11,10 +11,14 @@ DEFAULT  : 'default' ;
 FOR      : 'for' ;
 CONTINUE : 'continue' ;
 BREAK    : 'break' ;
+FALLT    : 'fallthrough' ;
 RANGE    : 'range' ;
 
 FUNC    : 'func' ;
 VAR     : 'var' ;
+CONST   : 'const' ;
+TYPE    : 'type' ;
+STRUCT  : 'struct' ;
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
