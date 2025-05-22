@@ -1,5 +1,3 @@
-package main
-
 func main() {
     a := 50;
     b := 7;

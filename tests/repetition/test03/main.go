@@ -1,5 +1,3 @@
-package main
-
 func main() {
     values := []int{2, 4, 6, 8, 10};
     count := 0;

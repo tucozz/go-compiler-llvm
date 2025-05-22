@@ -1,5 +1,3 @@
-package main
-
 var global int = 100;
 
 func main() {

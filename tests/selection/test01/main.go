@@ -1,5 +1,3 @@
-package main
-
 func main() {
     x := 10;
     result := false;

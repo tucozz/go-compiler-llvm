@@ -1,5 +1,3 @@
-package main
-
 func main() {
     x := (5 + 3) * 2 - 10 / 2 % 3;
     y := 7 + 4 * (2 - 1);
