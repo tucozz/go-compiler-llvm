@@ -1,100 +1,147 @@
 parser grammar Go_Parser;
 
 options {
-  tokenVocab = EZLexer;
+  tokenVocab = Go_Lexer;
 }
 
-unary_op:
-    INC
-|   DEC
-|   NOT
-|   MINUS
+program: (declaration | statement)* EOF;
+
+declaration:
+    varDeclaration
+    | constDeclaration
+    | typeDeclaration
+    | functionDeclaration
 ;
 
-binary_op:
-    OR
-|   AND
+varDeclaration: VAR ID typeSpec (ASSIGN expr)? SEMICOLON; 
+constDeclaration: CONST ID typeSpec (ASSIGN expr)? SEMICOLON;
+
+// Atualmente, apenas structs como tipo composto
+typeDeclaration: TYPE ID structType SEMICOLON;
+structType: STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END;
+fieldDeclaration: ID typeSpec SEMICOLON;
+
+functionDeclaration: FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END;
+parameterList: parameter (COMMA parameter)*;
+parameter: ID typeSpec; // Ex: x int, y string
+
+typeSpec:
+    INT | INT8 | INT16 | INT32 | INT64
+    | UINT | UINT8 | UINT16 | UINT32 | UINT64
+    | BOOL
+    | STRING
+    | FLOAT32 | FLOAT64
+    | ID
+    | S_BRA_INT S_BRA_END typeSpec
 ;
 
-relation_op:
-    EQUALS
-|   NOTEQUAL
-|   GTHAN
-|   LTHAN
-|   GETHAN
-|   LETHAN
+statement:
+    assignment
+    | inc_dec_stmt
+    | ifStmt
+    | forStmt
+    | returnStmt
+    | block
+    | simpleStmt SEMICOLON 
 ;
 
-basic_op:
-    PLUS
-|   MINUS
-|   TIMES
-|   LTHAN
-|   OVER
-|   MOD
+simpleStmt:
+    expr // Uma expressão que pode ser uma instrução, como uma chamada de função
 ;
 
 assignment:
-    expr ASSIGN expr SEMICOLON
-    expr S_ASSIGN expr SEMICOLON
+    lvalue ASSIGN expr SEMICOLON
+    | lvalue S_ASSIGN expr SEMICOLON
 ;
 
-inc_dec_stmt:
-    expr (INC | DEC) SEMICOLON
+inc_dec_stmt: lvalue (INC | DEC) SEMICOLON;
+
+ifStmt:
+    IF expr C_BRA_INT (statement)* C_BRA_END (ELSEIF expr C_BRA_INT (statement)* C_BRA_END)* (ELSE C_BRA_INT (statement)* C_BRA_END)?
+;
+
+forStmt:
+    FOR (forClause | forRangeClause | expr)? C_BRA_INT (statement)* C_BRA_END
+;
+
+forClause:
+    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt?
+;
+
+forRangeClause:
+    (ID (COMMA ID)?) S_ASSIGN RANGE expr
+;
+
+returnStmt:
+    'return' expr? SEMICOLON
+;
+
+block:
+    C_BRA_INT (statement)* C_BRA_END
 ;
 
 expr:
-    expr relation_op expr
-|   expr basic_op expr
-|   expr binary_op expr
-|   expr
+    orExpr
 ;
 
-stmt: 
-    assignment
-|   inc_dec_stmt
+orExpr:
+    andExpr (OR andExpr)*
 ;
 
-for_stmt:
-    FOR
+andExpr:
+    relationExpr (AND relationExpr)*
 ;
 
-item:
-    ID (type)? ASSIGN (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL)
+relationExpr:
+    addSubtractExpr (relation_op addSubtractExpr)*
 ;
 
-const_decl:
-    CONST ID (type)? ASSIGN (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL) SEMICOLON # constSimple
-|   CONST PAR_INT (item SEMICOLON)+ PAR_END # constGroup
-|   CONST ID (COMMA ID)* ASSIGN (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL) (COMMA (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL))* SEMICOLON # constMulti
+addSubtractExpr:
+    mulDivModExpr ((PLUS | MINUS) mulDivModExpr)*
 ;
 
-
-var_decl:
-    VAR ID (type)? ASSIGN (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL) SEMICOLON # varSimple
-|   VAR PAR_INT (item SEMICOLON)+ PAR_END # varGroup
-|   VAR ID (COMMA ID)* ASSIGN (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL) (COMMA (STRINGF | POS_INT | NEG_INT | POS_REAL | NEG_REAL))* SEMICOLON # varMulti
+mulDivModExpr:
+    unaryOpExpr ((TIMES | OVER | MOD) unaryOpExpr)*
 ;
 
-
-type:
-    INT
-|   INT8
-|   INT16
-|   INT32
-|   INT64
-|   UINT
-|   UINT8
-|   UINT16
-|   UINT32
-|   UINT64
-|   BOOL
-|   STRING
-|   FLOAT32
-|   FLOAT64
+unaryOpExpr:
+    (PLUS | MINUS | NOT) unaryOpExpr
+    | primaryExpr (INC | DEC)?
 ;
 
-declaration:
-    const_decl
-    var_decl
+primaryExpr:
+    ID
+    | POS_INT
+    | NEG_INT 
+    | POS_REAL
+    | NEG_REAL
+    | STRINGF
+    | KW_TRUE
+    | KW_FALSE
+    | PAR_INT expr PAR_END
+    | functionCall
+    | arrayAccess
+    | structAccess
+;
+
+lvalue:
+    ID
+    | arrayAccess
+    | structAccess
+;
+
+functionCall: ID PAR_INT (expressionList)? PAR_END;
+expressionList: expr (COMMA expr)*;
+
+arrayAccess: ID S_BRA_INT expr S_BRA_END;
+
+structAccess: ID (DOT ID)+;
+
+relation_op:
+    EQUALS
+    | NOTEQUAL
+    | GTHAN
+    | LTHAN
+    | GETHAN
+    | LETHAN
 ;

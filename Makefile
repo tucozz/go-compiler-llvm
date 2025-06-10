@@ -1,54 +1,38 @@
-# Comando do compilador Java
-JAVAC=javac
-# Comando da JVM
-JAVA=java
-# ROOT é a raiz dos diretórios com todos os roteiros de laboratórios
-YEAR=$(shell pwd | grep -o '20..-.')
-ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-# Caminho para o JAR do ANTLR em labs/tools
-ANTLR_PATH=$(ROOT)tools/antlr-4.13.2-complete.jar
-# Opção de configuração do CLASSPATH para o ambiente Java
-CLASS_PATH_OPTION=-cp .:$(ANTLR_PATH)
-# Configuração do comando de compilação do ANTLR
-ANTLR4=$(JAVA) -jar $(ANTLR_PATH)
-# Configuração do ambiente de teste do ANTLR
-GRUN=$(JAVA) $(CLASS_PATH_OPTION) org.antlr.v4.gui.TestRig
+# ... (restante do Makefile)
+
 # Diretório para os arquivos gerados
 GEN_DIR := $(dir $(GRAMMAR))
-GEN_PATH := $(GEN_DIR)lexer
-
-# Espera-se que a variável GRAMMAR seja definida na linha de comando: make GRAMMAR=path/Exemplo01.g
-ifndef GRAMMAR
-$(error É necessário passar a variável GRAMMAR, ex: make GRAMMAR=subdir/Exemplo01.g)
-endif
+# Alterar GEN_PATH para incluir o nome da gramática base, pois o ANTLR criará subdiretórios
+# para o lexer e parser dentro de um diretório com o nome da gramática.
+GEN_PATH := $(GEN_DIR)$(GRAMMAR_NAME_WITHOUT_EXT)/
 
 # Nome base da gramática (sem path e sem extensão)
 GRAMMAR_NAME=$(basename $(notdir $(GRAMMAR)))
 
+# Extrai o nome da gramática sem a extensão para usar como o nome do pacote gerado pelo ANTLR
+GRAMMAR_NAME_WITHOUT_EXT=$(shell basename $(GRAMMAR) .g)
+
 # Executa o ANTLR e o compilador Java
 all: antlr javac
-	@echo "Done."
+    @echo "Done."
 
 # Executa o ANTLR para compilar a gramática
+# Use a opção -visitor para gerar o Visitor pattern, que é útil para a próxima etapa (AST/Visitor).
+# Use a opção -package para definir o nome do pacote onde os arquivos serão gerados.
 antlr:
-	@cd $(GEN_DIR) && $(ANTLR4) -o lexer $(notdir $(GRAMMAR))
+    @mkdir -p $(GEN_PATH) # Garante que o diretório de destino exista
+    @cd $(GEN_DIR) && $(ANTLR4) -visitor -package $(GRAMMAR_NAME_WITHOUT_EXT) $(notdir $(GRAMMAR)) -o $(GRAMMAR_NAME_WITHOUT_EXT)
 
 # Executa o javac para compilar os arquivos gerados
 javac:
-	@$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)/*.java
+    @$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)*.java $(GEN_PATH)/*.java
 
-# Executa o lexer. Comando: $ make run GRAMMAR=subdir/Exemplo01.g FILE=arquivo_de_teste
+# Executa o parser. Comando: $ make run GRAMMAR=subdir/Exemplo01.g FILE=arquivo_de_teste
 run:
-	@cd $(GEN_PATH) && $(GRUN) $(GRAMMAR_NAME) tokens -tokens $(FILE)
+    @cd $(GEN_PATH) && $(GRUN) $(GRAMMAR_NAME_WITHOUT_EXT).$(GRAMMAR_NAME) program -tree $(FILE)
 
 # Remove os arquivos gerados pelo ANTLR
 clean:
-	@rm -rf $(GEN_PATH)
+    @rm -rf $(GEN_PATH)
 
-# Torna os scripts executáveis
-fix-permissions:
-	@chmod +x generate_outputs.sh test_diff.sh
-
-test: fix-permissions
-	@./generate_outputs.sh
-	@./test_diff.sh
+# ... (restante do Makefile)
