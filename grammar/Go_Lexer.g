@@ -62,6 +62,7 @@ S_BRA_END : ']' ;
 C_BRA_INT : '{' ;
 C_BRA_END : '}' ;
 SEMICOLON : ';' ;
+COLON     : ':' ;
 COMMA     : ',' ;
 
 POS_INT : DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS ; 
@@ -78,9 +79,8 @@ HEXDIGITS : [0-9a-fA-F]+ ;
 BINDIGITS : [0-1]+ ; 
 OCTDIGITS : [0-7]+ ;
 
-STRINGF   : '"' ( ESCAPE | UTF8CHAR | ~["\\\r\n])* '"' ;
+STRINGF : '"' ( ESCAPE | ~["\\\r\n])* '"' ;
 ESCAPE    : '\\' (["\\ntbrf] | 'u' HEX4 | 'U' HEX8) ;
 HEXDIGIT  : [0-9a-fA-F] ;
 HEX4      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
 HEX8      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
-UTF8CHAR  : [\u0001-\u007F] | [\u0080-\u07FF] | [\u0800-\uFFFF] | [\u{10000}-\u{10FFFF}] ;
