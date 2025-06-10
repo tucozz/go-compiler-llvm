@@ -4,30 +4,64 @@ options {
   tokenVocab = Go_Lexer;
 }
 
-program: (declaration | statement)* EOF;
+// Programa: sequência de declarações de nível superior
+program: topLevelDecl* EOF;
 
-declaration:
-    varDeclaration
-    | constDeclaration
-    | typeDeclaration
-    | functionDeclaration
+// Declarações de nível superior
+topLevelDecl:
+    varDecl
+    | constDecl
+    | typeDecl
+    | funcDecl
 ;
 
-varDeclaration: VAR ID typeSpec (ASSIGN expr)? SEMICOLON; 
-constDeclaration: 
-    CONST ID typeSpec (ASSIGN expr)? SEMICOLON # constDeclaration default
-    | CONST ID typeSpec SEMICOLON # constDeclaration without assignment
-    | CONST ID (COMMA ID)* ASSIGN expr (COMMA expr)* SEMICOLON # constDeclaration with more than one assignment
+// Declarações
+varDecl:
+    VAR varSpec SEMICOLON
 ;
 
-// Atualmente, apenas structs como tipo composto
-typeDeclaration: TYPE ID structType SEMICOLON;
-structType: STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END;
-fieldDeclaration: ID typeSpec SEMICOLON;
+constDecl:
+    CONST constSpec SEMICOLON
+;
 
-functionDeclaration: FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END;
-parameterList: parameter (COMMA parameter)*;
-parameter: ID typeSpec; // Ex: x int, y string
+typeDecl:
+    TYPE typeSpecDecl SEMICOLON
+;
+
+funcDecl:
+    FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? block
+;
+
+// Especificações para declarações
+varSpec:
+    ID typeSpec (ASSIGN expr)?          # varSingle
+    | ID (COMMA ID)* ASSIGN exprList    # varMulti
+;
+
+constSpec:
+    ID typeSpec (ASSIGN expr)?          # constSingle
+    | ID (COMMA ID)* ASSIGN exprList    # constMulti
+;
+
+typeSpecDecl:
+    ID structType
+;
+
+structType:
+    STRUCT C_BRA_INT (fieldDecl)* C_BRA_END
+;
+
+fieldDecl:
+    ID typeSpec SEMICOLON
+;
+
+parameterList:
+    parameter (COMMA parameter)*
+;
+
+parameter:
+    ID typeSpec
+;
 
 typeSpec:
     INT | INT8 | INT16 | INT32 | INT64
@@ -39,33 +73,60 @@ typeSpec:
     | S_BRA_INT S_BRA_END typeSpec
 ;
 
-statement:
-    assignment
-    | inc_dec_stmt
+// Instruções
+stmt:
+    simpleStmt
+    | block
     | ifStmt
+    | switchStmt
     | forStmt
     | returnStmt
-    | block
-    | simpleStmt SEMICOLON 
+    | continueStmt
+    | fallthroughStmt
 ;
 
 simpleStmt:
-    expr // Uma expressão que pode ser uma instrução, como uma chamada de função
+    emptyStmt
+    | exprStmt
+    | assignStmt
+    | incDecStmt
 ;
 
-assignment:
+emptyStmt:
+    SEMICOLON
+;
+
+exprStmt:
+    expr SEMICOLON
+;
+
+assignStmt:
     lvalue ASSIGN expr SEMICOLON
     | lvalue S_ASSIGN expr SEMICOLON
 ;
 
-inc_dec_stmt: lvalue (INC | DEC) SEMICOLON;
+incDecStmt:
+    lvalue (INC | DEC) SEMICOLON
+;
 
 ifStmt:
-    IF expr C_BRA_INT (statement)* C_BRA_END (ELSEIF expr C_BRA_INT (statement)* C_BRA_END)* (ELSE C_BRA_INT (statement)* C_BRA_END)?
+    IF expr block (ELSEIF expr block)* (ELSE block)?
+;
+
+switchStmt:
+    SWITCH (expr)? C_BRA_INT (caseClause)* (defaultClause)? C_BRA_END
+;
+
+caseClause:
+    CASE exprList COLON (stmt)*
+;
+
+defaultClause:
+    DEFAULT COLON (stmt)*
 ;
 
 forStmt:
-    FOR (forClause | forRangeClause | expr)? C_BRA_INT (statement)* C_BRA_END
+    FOR (forClause | forRangeClause | expr)? block
 ;
 
 forClause:
@@ -73,17 +134,26 @@ forClause:
 ;
 
 forRangeClause:
-    (ID (COMMA ID)?) S_ASSIGN RANGE expr
+    (lvalue (COMMA lvalue)?) S_ASSIGN RANGE expr
 ;
 
 returnStmt:
-    'return' expr? SEMICOLON
+    RETURN expr? SEMICOLON
 ;
 
 block:
-    C_BRA_INT (statement)* C_BRA_END
+    C_BRA_INT (stmt)* C_BRA_END
 ;
 
+continueStmt:
+    CONTINUE
+;
+
+fallthroughStmt:
+    FALLT
+;
+
+// Expressões
 expr:
     orExpr
 ;
@@ -97,7 +167,7 @@ andExpr:
 ;
 
 relationExpr:
-    addSubtractExpr (relation_op addSubtractExpr)*
+    addSubtractExpr (relationOp addSubtractExpr)*
 ;
 
 addSubtractExpr:
@@ -116,7 +186,7 @@ unaryOpExpr:
 primaryExpr:
     ID
     | POS_INT
-    | NEG_INT 
+    | NEG_INT
     | POS_REAL
     | NEG_REAL
     | STRINGF
@@ -134,14 +204,23 @@ lvalue:
     | structAccess
 ;
 
-functionCall: ID PAR_INT (expressionList)? PAR_END;
-expressionList: expr (COMMA expr)*;
+functionCall:
+    ID PAR_INT (exprList)? PAR_END
+;
 
-arrayAccess: ID S_BRA_INT expr S_BRA_END;
+exprList:
+    expr (COMMA expr)*
+;
 
-structAccess: ID (DOT ID)+;
+arrayAccess:
+    ID S_BRA_INT expr S_BRA_END
+;
 
-relation_op:
+structAccess:
+    ID (DOT ID)+
+;
+
+relationOp:
     EQUALS
     | NOTEQUAL
     | GTHAN

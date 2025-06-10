@@ -14,25 +14,25 @@ GRAMMAR_NAME_WITHOUT_EXT=$(shell basename $(GRAMMAR) .g)
 
 # Executa o ANTLR e o compilador Java
 all: antlr javac
-    @echo "Done."
+	@echo "Done."
 
 # Executa o ANTLR para compilar a gramática
 # Use a opção -visitor para gerar o Visitor pattern, que é útil para a próxima etapa (AST/Visitor).
 # Use a opção -package para definir o nome do pacote onde os arquivos serão gerados.
 antlr:
-    @mkdir -p $(GEN_PATH) # Garante que o diretório de destino exista
-    @cd $(GEN_DIR) && $(ANTLR4) -visitor -package $(GRAMMAR_NAME_WITHOUT_EXT) $(notdir $(GRAMMAR)) -o $(GRAMMAR_NAME_WITHOUT_EXT)
+	@mkdir -p $(GEN_PATH) # Garante que o diretório de destino exista
+	@cd $(GEN_DIR) && $(ANTLR4) $(GRAMMAR_NAME_WITHOUT_EXT) $(notdir $(GRAMMAR)) -o $(GRAMMAR_NAME_WITHOUT_EXT)
 
 # Executa o javac para compilar os arquivos gerados
 javac:
-    @$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)*.java $(GEN_PATH)/*.java
+	@$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)*.java $(GEN_PATH)/*.java
 
 # Executa o parser. Comando: $ make run GRAMMAR=subdir/Exemplo01.g FILE=arquivo_de_teste
 run:
-    @cd $(GEN_PATH) && $(GRUN) $(GRAMMAR_NAME_WITHOUT_EXT).$(GRAMMAR_NAME) program -tree $(FILE)
+	@cd $(GEN_PATH) && $(GRUN) $(GRAMMAR_NAME_WITHOUT_EXT).$(GRAMMAR_NAME) program -tree $(FILE)
 
 # Remove os arquivos gerados pelo ANTLR
 clean:
-    @rm -rf $(GEN_PATH)
+	@rm -rf $(GEN_PATH)
 
 # ... (restante do Makefile)
