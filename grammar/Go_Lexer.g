@@ -13,6 +13,7 @@ CONTINUE : 'continue' ;
 BREAK    : 'break' ;
 FALLT    : 'fallthrough' ;
 RANGE    : 'range' ;
+RETURN   : 'return' ;
 
 FUNC    : 'func' ;
 VAR     : 'var' ;
