@@ -14,7 +14,11 @@ declaration:
 ;
 
 varDeclaration: VAR ID typeSpec (ASSIGN expr)? SEMICOLON; 
-constDeclaration: CONST ID typeSpec (ASSIGN expr)? SEMICOLON;
+constDeclaration: 
+    CONST ID typeSpec (ASSIGN expr)? SEMICOLON # constDeclaration default
+    | CONST ID typeSpec SEMICOLON # constDeclaration without assignment
+    | CONST ID (COMMA ID)* ASSIGN expr (COMMA expr)* SEMICOLON # constDeclaration with more than one assignment
+;
 
 // Atualmente, apenas structs como tipo composto
 typeDeclaration: TYPE ID structType SEMICOLON;
