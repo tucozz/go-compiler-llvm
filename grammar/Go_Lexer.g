@@ -73,7 +73,6 @@ NEG_REAL : '-' DIGITS '.' DIGITS (('e' | 'E') ('+' | '-')? DIGITS)? ;
 ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
 COMMENT_A     : '//' ~[\n]* ;
 COMMENT_B     : '/*' ~[*/]* '*/';
-STRUCT_ACCESS : ID ('.' ID)* ;
 DIGITS : [0-9]+ ; 
 HEXDIGITS : [0-9a-fA-F]+ ; 
 BINDIGITS : [0-1]+ ; 
