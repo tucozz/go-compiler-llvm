@@ -1,6 +1,6 @@
 lexer grammar Go_Lexer;
 
-WS : [ \t\n]+ -> skip ;
+WS : [ \t\n\r]+ -> skip ;
 
 IF       : 'if' ;
 ELSEIF   : 'else if' ;
@@ -62,18 +62,24 @@ S_BRA_END : ']' ;
 C_BRA_INT : '{' ;
 C_BRA_END : '}' ;
 SEMICOLON : ';' ;
+COLON     : ':' ;
 COMMA     : ',' ;
 
-STRINGF       : '"' ~["]* '"' ;
+POS_INT : DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS ; 
+NEG_INT : '-' (DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS) ; 
+POS_REAL : DIGITS '.' DIGITS (('e' | 'E') ('+' | '-')? DIGITS)? ; 
+NEG_REAL : '-' DIGITS '.' DIGITS (('e' | 'E') ('+' | '-')? DIGITS)? ;
+
 ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
 COMMENT_A     : '//' ~[\n]* ;
 COMMENT_B     : '/*' ~[*/]* '*/';
-STRUCT_ACCESS : ID ('.' ID)* ;
+DIGITS : [0-9]+ ; 
+HEXDIGITS : [0-9a-fA-F]+ ; 
+BINDIGITS : [0-1]+ ; 
+OCTDIGITS : [0-7]+ ;
 
-
-fragment DIGITS : [0-9]+ ;
-
-POS_INT  : DIGITS ;
-NEG_INT  : '-' DIGITS;
-POS_REAL : DIGITS '.' DIGITS ;
-NEG_REAL : '-' DIGITS '.' DIGITS ;
+STRINGF : '"' ( ESCAPE | ~["\\\r\n])* '"' ;
+ESCAPE    : '\\' (["\\ntbrf] | 'u' HEX4 | 'U' HEX8) ;
+HEXDIGIT  : [0-9a-fA-F] ;
+HEX4      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
+HEX8      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;

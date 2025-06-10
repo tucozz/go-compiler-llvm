@@ -7,4 +7,7 @@ func main() {
     var b bool = false;
     x := 3.14;
     b = true;
+    var x int = 0x1A;
+    var y uint64 = 0xFF00;
+    var z float64 = 1.23e-4;
 }
