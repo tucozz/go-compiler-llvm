@@ -4,64 +4,25 @@ options {
   tokenVocab = Go_Lexer;
 }
 
-// Programa: sequência de declarações de nível superior
-program: topLevelDecl* EOF;
+program: (declaration | statement)* EOF;
 
-// Declarações de nível superior
-topLevelDecl:
-    varDecl
-    | constDecl
-    | typeDecl
-    | funcDecl
+declaration:
+    varDeclaration
+    | constDeclaration
+    | typeDeclaration
+    | functionDeclaration
 ;
 
-// Declarações
-varDecl:
-    VAR varSpec SEMICOLON
-;
+varDeclaration: VAR ID typeSpec (ASSIGN expr)? statementEnd;
+constDeclaration: CONST ID typeSpec (ASSIGN expr)? statementEnd;
 
-constDecl:
-    CONST constSpec SEMICOLON
-;
+typeDeclaration: TYPE ID structType statementEnd;
+structType: STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END;
+fieldDeclaration: ID typeSpec statementEnd;
 
-typeDecl:
-    TYPE typeSpecDecl SEMICOLON
-;
-
-funcDecl:
-    FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? block
-;
-
-// Especificações para declarações
-varSpec:
-    ID typeSpec (ASSIGN expr)?          # varSingle
-    | ID (COMMA ID)* ASSIGN exprList    # varMulti
-;
-
-constSpec:
-    ID typeSpec (ASSIGN expr)?          # constSingle
-    | ID (COMMA ID)* ASSIGN exprList    # constMulti
-;
-
-typeSpecDecl:
-    ID structType
-;
-
-structType:
-    STRUCT C_BRA_INT (fieldDecl)* C_BRA_END
-;
-
-fieldDecl:
-    ID typeSpec SEMICOLON
-;
-
-parameterList:
-    parameter (COMMA parameter)*
-;
-
-parameter:
-    ID typeSpec
-;
+functionDeclaration: FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END;
+parameterList: parameter (COMMA parameter)*;
+parameter: ID typeSpec;
 
 typeSpec:
     INT | INT8 | INT16 | INT32 | INT64
@@ -69,117 +30,58 @@ typeSpec:
     | BOOL
     | STRING
     | FLOAT32 | FLOAT64
-    | ID
-    | S_BRA_INT S_BRA_END typeSpec
+    | ID             // Para tipos definidos pelo usuário (structs, etc.)
+    | S_BRA_INT S_BRA_END typeSpec // Para arrays, e.g., []int
 ;
 
-// Instruções
-stmt:
-    simpleStmt
-    | block
+statement:
+    assignment
+    | inc_dec_stmt
     | ifStmt
-    | switchStmt
     | forStmt
     | returnStmt
-    | continueStmt
-    | fallthroughStmt
-;
-
-simpleStmt:
-    emptyStmt
+    | block
     | exprStmt
-    | assignStmt
-    | incDecStmt
 ;
 
-emptyStmt:
-    SEMICOLON
+exprStmt: expr statementEnd;
+
+assignment:
+    lvalue ASSIGN expr statementEnd
+    | lvalue S_ASSIGN expr statementEnd
 ;
 
-exprStmt:
-    expr SEMICOLON
-;
-
-assignStmt:
-    lvalue ASSIGN expr SEMICOLON
-    | lvalue S_ASSIGN expr SEMICOLON
-;
-
-incDecStmt:
-    lvalue (INC | DEC) SEMICOLON
-;
+inc_dec_stmt: lvalue (INC | DEC) statementEnd;
 
 ifStmt:
-    IF expr block (ELSEIF expr block)* (ELSE block)?
-;
-
-switchStmt:
-    SWITCH (expr)? C_BRA_INT (caseClause)* (defaultClause)? C_BRA_END
-;
-
-caseClause:
-    CASE exprList COLON (stmt)*
-;
-
-defaultClause:
-    DEFAULT COLON (stmt)*
+    IF expr C_BRA_INT (statement)* C_BRA_END (ELSEIF expr C_BRA_INT (statement)* C_BRA_END)* (ELSE C_BRA_INT (statement)* C_BRA_END)?
 ;
 
 forStmt:
-    FOR (forClause | forRangeClause | expr)? block
+    FOR (forClause | forRangeClause | expr)? C_BRA_INT (statement)* C_BRA_END
 ;
 
 forClause:
-    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt?
+    exprStmt? SEMICOLON expr? SEMICOLON exprStmt?
 ;
 
 forRangeClause:
-    (lvalue (COMMA lvalue)?) S_ASSIGN RANGE expr
+    (ID (COMMA ID)?) S_ASSIGN RANGE expr
 ;
 
-returnStmt:
-    RETURN expr? SEMICOLON
-;
+returnStmt: 'return' expr? statementEnd;
 
 block:
-    C_BRA_INT (stmt)* C_BRA_END
+    C_BRA_INT (statement)* C_BRA_END
 ;
 
-continueStmt:
-    CONTINUE
-;
-
-fallthroughStmt:
-    FALLT
-;
-
-// Expressões
 expr:
-    orExpr
-;
-
-orExpr:
-    andExpr (OR andExpr)*
-;
-
-andExpr:
-    relationExpr (AND relationExpr)*
-;
-
-relationExpr:
-    addSubtractExpr (relationOp addSubtractExpr)*
-;
-
-addSubtractExpr:
-    mulDivModExpr ((PLUS | MINUS) mulDivModExpr)*
-;
-
-mulDivModExpr:
-    unaryOpExpr ((TIMES | OVER | MOD) unaryOpExpr)*
-;
-
-unaryOpExpr:
-    (PLUS | MINUS | NOT) unaryOpExpr
+    (PLUS | MINUS | NOT) expr
+    | expr (TIMES | OVER | MOD) expr
+    | expr (PLUS | MINUS) expr
+    | expr relation_op expr
+    | expr AND expr
+    | expr OR expr
     | primaryExpr (INC | DEC)?
 ;
 
@@ -204,23 +106,14 @@ lvalue:
     | structAccess
 ;
 
-functionCall:
-    ID PAR_INT (exprList)? PAR_END
-;
+functionCall: ID PAR_INT (expressionList)? PAR_END;
+expressionList: expr (COMMA expr)*;
 
-exprList:
-    expr (COMMA expr)*
-;
+arrayAccess: ID S_BRA_INT expr S_BRA_END;
 
-arrayAccess:
-    ID S_BRA_INT expr S_BRA_END
-;
+structAccess: ID (DOT ID)+;
 
-structAccess:
-    ID (DOT ID)+
-;
-
-relationOp:
+relation_op:
     EQUALS
     | NOTEQUAL
     | GTHAN
@@ -228,3 +121,5 @@ relationOp:
     | GETHAN
     | LETHAN
 ;
+
+statementEnd: SEMICOLON?;
