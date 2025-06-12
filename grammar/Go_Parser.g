@@ -13,8 +13,21 @@ declaration:
     | functionDeclaration
 ;
 
-varDeclaration: VAR ID typeSpec (ASSIGN expr)? statementEnd;
-constDeclaration: CONST ID typeSpec (ASSIGN expr)? statementEnd;
+varDeclaration:
+    VAR identifierList typeSpec? (ASSIGN expressionList)? statementEnd
+;
+
+constDeclaration:
+    CONST identifierList typeSpec? (ASSIGN expressionList)? statementEnd
+;
+
+identifierList:
+    ID (COMMA ID)*
+;
+
+expressionList:
+    expr (COMMA expr)*
+;
 
 typeDeclaration: TYPE ID structType statementEnd;
 structType: STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END;
@@ -107,7 +120,6 @@ lvalue:
 ;
 
 functionCall: ID PAR_INT (expressionList)? PAR_END;
-expressionList: expr (COMMA expr)*;
 
 arrayAccess: ID S_BRA_INT expr S_BRA_END;
 
