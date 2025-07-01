@@ -37,6 +37,37 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         foundSemanticErrors = true;
     }
 
+    // --- MÉTODOS DE ASSIGNMENT ---
+    @Override
+    public Void visitAssignOpStatement(Go_Parser.AssignOpStatementContext ctx) {
+        String varName = ctx.lvalue().getText();
+        int lineNumber = ctx.lvalue().getStart().getLine();
+        String varType = "assignment"; // Tipo genérico para atribuição
+
+        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+            SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
+            reportSemanticError(lineNumber,
+                "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+        }
+
+        return super.visitAssignOpStatement(ctx);
+    }
+
+    @Override
+    public Void visitShortAssignOpStatement(Go_Parser.ShortAssignOpStatementContext ctx) {
+        String varName = ctx.lvalue().getText();
+        int lineNumber = ctx.lvalue().getStart().getLine();
+        String varType = "assignment"; // Tipo genérico para atribuição
+
+        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+            SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
+            reportSemanticError(lineNumber,
+                "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+        }
+
+        return super.visitShortAssignOpStatement(ctx);
+    }
+
     // --- MÉTODOS DE DECLARAÇÃO ---
 
     @Override
