@@ -5,22 +5,22 @@ options {
 }
 
 program: 
-    (declaration | statement)* EOF #ProgramRule
+    (statement)* EOF #ProgramRule
 ;
 
 declaration:
-    varDeclaration #TopLevelVarDecl
-    | constDeclaration #TopLevelConstDecl
-    | typeDeclaration #TopLevelTypeDecl
-    | functionDeclaration #TopLevelFuncDecl
+    varDeclaration 
+    | constDeclaration
+    | typeDeclaration 
+    | functionDeclaration 
 ;
 
 varDeclaration:
-    VAR varSpec statementEnd #VarDeclStatement
+    VAR varSpec statementEnd #VarDecl
 ;
 
 constDeclaration:
-    CONST constSpec statementEnd #ConstDeclStatement
+    CONST constSpec statementEnd #ConstDecl
 ;
 
 varSpec:
@@ -38,7 +38,7 @@ expressionList:
 ;
 
 typeDeclaration: 
-    TYPE typeSpecDecl statementEnd #TypeDeclStatement
+    TYPE typeSpecDecl statementEnd #TypeDecl
 ;
 
 typeSpecDecl:

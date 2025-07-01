@@ -40,7 +40,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     // --- MÉTODOS DE DECLARAÇÃO ---
 
     @Override
-    public Void visitVarDeclStatement(Go_Parser.VarDeclStatementContext ctx) {
+    public Void visitVarDecl(Go_Parser.VarDeclContext ctx) {
         visit(ctx.varSpec());
         return null;
     }
@@ -76,7 +76,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitConstDeclStatement(Go_Parser.ConstDeclStatementContext ctx) {
+    public Void visitConstDecl(Go_Parser.ConstDeclContext ctx) {
         visit(ctx.constSpec());
         return null;
     }
@@ -111,7 +111,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitTypeDeclStatement(Go_Parser.TypeDeclStatementContext ctx) {
+    public Void visitTypeDecl(Go_Parser.TypeDeclContext ctx) {
         visit(ctx.typeSpecDecl());
         return null;
     }
