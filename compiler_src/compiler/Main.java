@@ -54,5 +54,6 @@ public class Main {
         // Imprime as tabelas de símbolos e de strings, independentemente de erros
         semanticAnalyzer.getSymbolTable().printTable();
         semanticAnalyzer.getStringTable().printTable();
+        semanticAnalyzer.getFunctionTable().printTable();
     }
 }

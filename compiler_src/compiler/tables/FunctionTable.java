@@ -153,7 +153,7 @@ public class FunctionTable {
             System.out.println("  " + func);
         }
         
-        System.out.println("Statistics: Defined=" + defined + ", Built-in=" + builtIn + ", Declared only=" + (functions.size() - defined));
+        // System.out.println("Statistics: Defined=" + defined + ", Built-in=" + builtIn + ", Declared only=" + (functions.size() - defined));
         System.out.println("======================");
     }
 }
