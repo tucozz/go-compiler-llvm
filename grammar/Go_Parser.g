@@ -85,7 +85,8 @@ typeSpec:
 ;
 
 statement:
-    assignment #AssignmentStatement
+    declaration #DeclarationStatement
+    | assignment #AssignmentStatement
     | inc_dec_stmt #IncDecStatement
     | ifStmt #IfStatement
     | forStmt #ForStatement
