@@ -169,10 +169,8 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         
         if (ctx.parameterList() != null) {
             // Visitar cada parâmetro
-            // Note: parameterList has #ParamList label, so we need to cast to get the parameter() method
             Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) ctx.parameterList();
             for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
-                // The parameter context has #ParameterDeclaration label
                 Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
                 String paramName = paramDeclCtx.ID().getText();
                 String paramType = paramDeclCtx.typeSpec().getText();
@@ -214,11 +212,8 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         // Coletar tipos de argumentos
         List<String> argTypes = new ArrayList<>();
         if (ctx.expressionList() != null) {
-            // Para simplificar, vamos assumir que todos os argumentos são do tipo correto
-            // Em uma implementação real, precisaríamos determinar o tipo de cada expressão
             Go_Parser.ExprListContext exprListCtx = (Go_Parser.ExprListContext) ctx.expressionList();
             for (Go_Parser.ExprContext exprCtx : exprListCtx.expr()) {
-                // Determinar tipo da expressão (simplificado)
                 String argType = determineExpressionType(exprCtx);
                 argTypes.add(argType);
             }
@@ -238,9 +233,6 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
      * Determina o tipo de uma expressão (versão simplificada)
      */
     private String determineExpressionType(Go_Parser.ExprContext ctx) {
-        // Esta é uma implementação muito simplificada
-        // Em uma versão completa, seria necessário analisar recursivamente a expressão
-        
         // Verificar se é um literal
         if (ctx instanceof Go_Parser.PrimaryOrPostfixExprContext) {
             Go_Parser.PrimaryOrPostfixExprContext primary = (Go_Parser.PrimaryOrPostfixExprContext) ctx;
@@ -298,31 +290,18 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitIdLvalue(ctx);
     }
 
-    // FIXED: ArrayAccessLvalue contains an arrayAccess rule, access it properly
     @Override
     public Void visitArrayAccessLvalue(Go_Parser.ArrayAccessLvalueContext ctx) {
-        // This method is called for the lvalue rule with #ArrayAccessLvalue label
-        // It contains an arrayAccess, so we need to visit it and let the 
-        // visitArrayIndex method handle the ID checking
         return super.visitArrayAccessLvalue(ctx);
     }
 
-    // FIXED: StructAccessLvalue contains a structAccess rule, access it properly  
     @Override
     public Void visitStructAccessLvalue(Go_Parser.StructAccessLvalueContext ctx) {
-        // This method is called for the lvalue rule with #StructAccessLvalue label
-        // It contains a structAccess, so we need to visit it and let the
-        // visitStructFieldAccess method handle the ID checking
         return super.visitStructAccessLvalue(ctx);
     }
 
-    // FIXED: Now accesses ID directly from ArrayIndexContext
-    // Since #ArrayIndex is the direct label of the 'arrayAccess' rule
     @Override
     public Void visitArrayIndex(Go_Parser.ArrayIndexContext ctx) {
-        // The 'arrayAccess' rule is 'ID S_BRA_INT expr S_BRA_END #ArrayIndex'
-        // Since 'ArrayIndex' is the label OF THE RULE ITSELF 'arrayAccess',
-        // the ID() is directly available in the context 'ctx'
         String varName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
         if (!symbolTable.contains(varName)) {
@@ -331,13 +310,8 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitArrayIndex(ctx);
     }
 
-    // FIXED: Now accesses ID directly from StructFieldAccessContext
-    // Since #StructFieldAccess is the direct label of the 'structAccess' rule
     @Override
     public Void visitStructFieldAccess(Go_Parser.StructFieldAccessContext ctx) {
-        // The 'structAccess' rule is 'ID (DOT ID)+ #StructFieldAccess'
-        // Since 'StructFieldAccess' is the label OF THE RULE ITSELF 'structAccess',
-        // the ID(0) is directly available in the context 'ctx'
         String varName = ctx.ID(0).getText();
         int lineNumber = ctx.ID(0).getSymbol().getLine();
         if (!symbolTable.contains(varName)) {
