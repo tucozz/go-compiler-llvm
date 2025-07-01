@@ -4,272 +4,183 @@ options {
   tokenVocab = Go_Lexer;
 }
 
-// -------------------------------------------------------------------
-// Regra de Início
-// -------------------------------------------------------------------
-
-// Programa: sequência de declarações de nível superior
-program: topLevelDecl* EOF;
-
-// -------------------------------------------------------------------
-// Declarações de Nível Superior
-// -------------------------------------------------------------------
-
-topLevelDecl:
-    varDecl     #TopLevelVarDecl
-    | constDecl #TopLevelConstDecl
-    | typeDecl  #TopLevelTypeDecl
-    | funcDecl  #TopLevelFuncDecl
+program: 
+    (declaration | statement)* EOF #ProgramRule
 ;
 
-// Declarações (agora sem SEMICOLON explícito, usa statementEnd)
-varDecl:
-    VAR varSpec statementEnd #VarDeclaration
+declaration:
+    varDeclaration #TopLevelVarDecl
+    | constDeclaration #TopLevelConstDecl
+    | typeDeclaration #TopLevelTypeDecl
+    | functionDeclaration #TopLevelFuncDecl
 ;
 
-constDecl:
-    CONST constSpec statementEnd #ConstDeclaration
+varDeclaration:
+    VAR varSpec statementEnd #VarDeclStatement
 ;
 
-typeDecl:
-    TYPE typeSpecDecl statementEnd #TypeDeclaration
+constDeclaration:
+    CONST constSpec statementEnd #ConstDeclStatement
 ;
-
-funcDecl:
-    FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? block #FunctionDeclaration
-;
-
-// -------------------------------------------------------------------
-// Especificações para Declarações
-// -------------------------------------------------------------------
 
 varSpec:
-    ID typeSpec (ASSIGN expr)?              #VarSingleSpec // Ex: var x int = 10
-    | ID (COMMA ID)* typeSpec ASSIGN exprList #VarMultiSpec  // Ex: var x, y int = 10, 20
+    ID typeSpec (ASSIGN expr)?              #VarSingleSpec
+    | ID (COMMA ID)* typeSpec ASSIGN expressionList #VarMultiSpec
 ;
 
 constSpec:
-    ID typeSpec (ASSIGN expr)?              #ConstSingleSpec // Ex: const PI = 3.14
-    | ID (COMMA ID)* typeSpec ASSIGN exprList #ConstMultiSpec  // Ex: const A, B = 1, 2
+    ID typeSpec (ASSIGN expr)?              #ConstSingleSpec
+    | ID (COMMA ID)* typeSpec ASSIGN expressionList #ConstMultiSpec
+;
+
+expressionList:
+    expr (COMMA expr)* #ExprList
+;
+
+typeDeclaration: 
+    TYPE typeSpecDecl statementEnd #TypeDeclStatement
 ;
 
 typeSpecDecl:
     ID structType #StructTypeDefinition
 ;
 
-structType:
-    STRUCT C_BRA_INT (fieldDecl)* C_BRA_END #StructLiteral
+structType: 
+    STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END #StructLiteral
 ;
 
-fieldDecl:
-    ID typeSpec statementEnd #FieldDeclaration // Campo da struct também usa statementEnd
+fieldDeclaration: 
+    ID typeSpec statementEnd #FieldDecl
 ;
 
-parameterList:
-    parameter (COMMA parameter)*
+functionDeclaration: 
+    FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END #FunctionDecl
 ;
 
-parameter:
+parameterList: 
+    parameter (COMMA parameter)* #ParamList
+;
+
+parameter: 
     ID typeSpec #ParameterDeclaration
 ;
 
-// ATENÇÃO: Corrigido o erro (122) para 'typeSpec'
-// Todas as alternativas agora têm rótulos
 typeSpec:
-    INT        #TypeInt
-    | INT8     #TypeInt8
-    | INT16    #TypeInt16
-    | INT32    #TypeInt32
-    | INT64    #TypeInt64
-    | UINT     #TypeUint
-    | UINT8    #TypeUint8
-    | UINT16   #TypeUint16
-    | UINT32   #TypeUint32
-    | UINT64   #TypeUint64
-    | BOOL     #TypeBool
-    | STRING   #TypeString
-    | FLOAT32  #TypeFloat32
-    | FLOAT64  #TypeFloat64
-    | ID             #CustomType // Para tipos definidos pelo usuário
-    | S_BRA_INT S_BRA_END typeSpec #ArrayType // Para arrays, e.g., []int
+    INT #TypeInt
+    | INT8 #TypeInt8
+    | INT16 #TypeInt16
+    | INT32 #TypeInt32
+    | INT64 #TypeInt64
+    | UINT #TypeUint
+    | UINT8 #TypeUint8
+    | UINT16 #TypeUint16
+    | UINT32 #TypeUint32
+    | UINT64 #TypeUint64
+    | BOOL #TypeBool
+    | STRING #TypeString
+    | FLOAT32 #TypeFloat32
+    | FLOAT64 #TypeFloat64
+    | ID #CustomType
+    | S_BRA_INT S_BRA_END typeSpec #ArrayType
 ;
 
-// -------------------------------------------------------------------
-// Instruções (Statements)
-// -------------------------------------------------------------------
-
-stmt:
-    simpleStmt      #SimpleStatement
-    | block         #BlockStatement
-    | ifStmt        #IfStatement
-    | switchStmt    #SwitchStatement
-    | forStmt       #ForStatement
-    | returnStmt    #ReturnStatement
-    | continueStmt  #ContinueStatement
-    | fallthroughStmt #FallthroughStatement
+statement:
+    assignment #AssignmentStatement
+    | inc_dec_stmt #IncDecStatement
+    | ifStmt #IfStatement
+    | forStmt #ForStatement
+    | returnStmt #ReturnStatement
+    | block #BlockStatement
+    | exprStmt #ExpressionStatement
 ;
 
-simpleStmt:
-    emptyStmt   #EmptyStatement // Representa um ';' explícito sozinho
-    | exprStmt  #ExpressionStatement
-    | assignStmt #AssignmentStatement
-    | incDecStmt #IncDecStatement
-;
-
-emptyStmt:
-    SEMICOLON #ExplicitSemicolon
-;
-
-// A expressão como instrução termina com statementEnd
-exprStmt:
+exprStmt: 
     expr statementEnd #ExpressionOnlyStatement
 ;
 
-// Atribuições agora usam statementEnd
-assignStmt:
-    lvalue ASSIGN expr statementEnd     #AssignOpStatement
+assignment:
+    lvalue ASSIGN expr statementEnd #AssignOpStatement
     | lvalue S_ASSIGN expr statementEnd #ShortAssignOpStatement
 ;
 
-// Inc/Dec agora usam statementEnd
-incDecStmt:
+inc_dec_stmt: 
     lvalue (INC | DEC) statementEnd #IncDecOperationStatement
 ;
 
 ifStmt:
-    IF expr block (ELSEIF expr block)* (ELSE block)? #IfElseStatement
-;
-
-switchStmt:
-    SWITCH (expr)? C_BRA_INT (caseClause)* (defaultClause)? C_BRA_END #SwitchStatementFull
-;
-
-caseClause:
-    CASE exprList COLON (stmt)* #CaseCondition
-;
-
-defaultClause:
-    DEFAULT COLON (stmt)* #DefaultCase
+    IF expr C_BRA_INT (statement)* C_BRA_END (ELSEIF expr C_BRA_INT (statement)* C_BRA_END)* (ELSE C_BRA_INT (statement)* C_BRA_END)? #IfElseStatement
 ;
 
 forStmt:
-    FOR (forClause | forRangeClause | expr)? block #ForLoopStatement // 'expr' para for condition { }
+    FOR (forClause | forRangeClause | expr)? C_BRA_INT (statement)* C_BRA_END #ForLoopStatement
 ;
 
-// forClause AINDA MANTÉM OS SEMICOLONS EXPLÍCITOS (parte da sintaxe do Go)
 forClause:
-    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt? #ForClassicClause
+    exprStmt? SEMICOLON expr? SEMICOLON exprStmt? #ForClassicClause
 ;
 
-// ATENÇÃO: Corrigido o erro (124) de conflito com 'forRangeClause'
 forRangeClause:
-    (lvalue (COMMA lvalue)?) S_ASSIGN RANGE expr #ForRangeClauseExpr // Renomeado o rótulo
+    (ID (COMMA ID)?) S_ASSIGN RANGE expr #ForRangeClauseExpr
 ;
 
-returnStmt:
-    RETURN expr? statementEnd #ReturnStatementWithExpr
+returnStmt: 
+    'return' expr? statementEnd #ReturnStatementWithExpr
 ;
 
 block:
-    C_BRA_INT (stmt)* C_BRA_END #BlockCode
+    C_BRA_INT (statement)* C_BRA_END #BlockCode
 ;
-
-continueStmt:
-    CONTINUE statementEnd #ContinueJump
-;
-
-fallthroughStmt:
-    FALLT statementEnd #FallthroughJump
-;
-
-// -------------------------------------------------------------------
-// Expressões (Estilo "OR" para precedência)
-// -------------------------------------------------------------------
 
 expr:
-    orExpr
-;
-
-orExpr:
-    andExpr (OR andExpr)* #LogicalORExpr
-;
-
-andExpr:
-    relationExpr (AND relationExpr)* #LogicalANDExpr
-;
-
-// ATENÇÃO: Corrigido o erro (124) de conflito com 'relationOp'
-relationExpr:
-    addSubtractExpr (relationOp addSubtractExpr)* #ComparisonExpr // Renomeado o rótulo
-;
-
-addSubtractExpr:
-    mulDivModExpr ((PLUS | MINUS) mulDivModExpr)* #AddSubExpr
-;
-
-// ATENÇÃO: Corrigido o erro (124) de conflito com 'mulDivModExpr'
-mulDivModExpr:
-    unaryOpExpr ((TIMES | OVER | MOD) unaryOpExpr)* #MultiplyDivideModExpr // Renomeado o rótulo
-;
-
-unaryOpExpr:
-    (PLUS | MINUS | NOT) unaryOpExpr #UnaryPrefixExpr // Unários pré-fixados
-    | primaryExpr (INC | DEC)? #PrimaryOrPostfixExpr // Expressões primárias e pós-fixados
+    (PLUS | MINUS | NOT) expr #UnaryPrefixExpr
+    | expr (TIMES | OVER | MOD) expr #MultiplyDivideModExpr
+    | expr (PLUS | MINUS) expr #AddSubExpr
+    | expr relation_op expr #ComparisonExpr
+    | expr AND expr #LogicalANDExpr
+    | expr OR expr #LogicalORExpr
+    | primaryExpr (INC | DEC)? #PrimaryOrPostfixExpr
 ;
 
 primaryExpr:
-    ID          #IdExpr
-    | POS_INT   #IntLiteral
-    | NEG_INT   #NegIntLiteral
-    | POS_REAL  #RealLiteral
-    | NEG_REAL  #NegRealLiteral
-    | STRINGF   #StringLiteral
-    | KW_TRUE   #TrueLiteral
-    | KW_FALSE  #FalseLiteral
+    ID #IdExpr
+    | POS_INT #IntLiteral
+    | NEG_INT #NegIntLiteral
+    | POS_REAL #RealLiteral
+    | NEG_REAL #NegRealLiteral
+    | STRINGF #StringLiteral
+    | KW_TRUE #TrueLiteral
+    | KW_FALSE #FalseLiteral
     | PAR_INT expr PAR_END #ParenthesizedExpr
     | functionCall #FuncCallExpr
-    | arrayAccess  #ArrayAccessExpr
+    | arrayAccess #ArrayAccessExpr
     | structAccess #StructAccessExpr
 ;
 
 lvalue:
-    ID          #IdLvalue
+    ID #IdLvalue
     | arrayAccess #ArrayAccessLvalue
     | structAccess #StructAccessLvalue
 ;
 
-// -------------------------------------------------------------------
-// Regras Auxiliares de Expressão
-// -------------------------------------------------------------------
-
-functionCall:
-    ID PAR_INT (exprList)? PAR_END #CallExpression
+functionCall: 
+    ID PAR_INT (expressionList)? PAR_END #CallExpression
 ;
 
-exprList:
-    expr (COMMA expr)* #ExpressionList
-;
-
-arrayAccess:
+arrayAccess: 
     ID S_BRA_INT expr S_BRA_END #ArrayIndex
 ;
 
-structAccess:
+structAccess: 
     ID (DOT ID)+ #StructFieldAccess
 ;
 
-// 'relationOp' (com 'Op' no final) é o nome da regra.
-// Os rótulos das alternativas são para diferenciar cada operador.
-relationOp:
-    EQUALS      #EqualsOperator
-    | NOTEQUAL  #NotEqualsOperator
-    | GTHAN     #GreaterThanOperator
-    | LTHAN     #LessThanOperator
-    | GETHAN    #GreaterThanEqualsOperator
-    | LETHAN    #LessThanEqualsOperator
+relation_op:
+    EQUALS #EqualsOperator
+    | NOTEQUAL #NotEqualsOperator
+    | GTHAN #GreaterThanOperator
+    | LTHAN #LessThanOperator
+    | GETHAN #GreaterThanEqualsOperator
+    | LETHAN #LessThanEqualsOperator
 ;
 
-// -------------------------------------------------------------------
-// Regra para o fim de uma instrução/declaração (permite ASI)
-// -------------------------------------------------------------------
 statementEnd: SEMICOLON?;
