@@ -1,5 +1,4 @@
-// compiler_src/Main.java
-package compiler; // O pacote da sua classe Main
+package compiler;
 
 import java.io.IOException;
 import org.antlr.v4.runtime.CharStream;
@@ -7,11 +6,10 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
-// Imports para o seu lexer, parser e visitor, baseado nos pacotes que o ANTLR gera
-// Certifique-se de que 'parser' é o pacote que você definiu no Makefile para as classes ANTLR
+// Imports para o lexer, parser e visitor, baseado nos pacotes que o ANTLR gera
 import Go_Parser.Go_Lexer;
 import Go_Parser.Go_Parser;
-import compiler.GoSemanticAnalyzer; // O pacote que você criou para o visitor
+import compiler.GoSemanticAnalyzer; // visitor
 
 public class Main {
 

@@ -17,7 +17,7 @@ GRAMMAR_BASE_DIR = grammar
 OUTPUT_JAVA_DIR = $(GRAMMAR_BASE_DIR)/$(GRAMMAR_PACKAGE_NAME)
 
 # Diretório onde você colocou seu código Java manual (SymbolTable, GoSemanticAnalyzer, Main, etc.)
-COMPILER_SRC_DIR = compiler_src
+COMPILER_SRC_DIR = compiler
 
 # Diretório para onde as classes .class serão compiladas
 COMPILER_BIN_DIR = bin
@@ -55,7 +55,7 @@ javac:
 # NOVO: Regra para compilar o seu código Java manual (tabelas, visitor, Main)
 compiler_javac: javac
 	@mkdir -p $(COMPILER_BIN_DIR)
-	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) $(COMPILER_SRC_DIR)/compiler/*.java $(COMPILER_SRC_DIR)/compiler/tables/*.java
+	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) $(COMPILER_SRC_DIR)/*.java $(COMPILER_SRC_DIR)/tables/*.java
 
 # Executa o compilador (Main.java)
 # Exemplo de uso: make run_compiler FILE=inputs/exemplo.go
