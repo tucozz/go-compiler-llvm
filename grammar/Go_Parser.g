@@ -13,6 +13,7 @@ declaration:
     | constDeclaration
     | typeDeclaration 
     | functionDeclaration 
+    | shortDeclaration
 ;
 
 varDeclaration:
@@ -31,6 +32,10 @@ varSpec:
 constSpec:
     ID typeSpec (ASSIGN expr)?                                              #ConstSingleSpec
     | ID (COMMA ID)* typeSpec ASSIGN expressionList                         #ConstMultiSpec
+;
+
+shortDeclaration:
+    lvalue S_ASSIGN expr statementEnd                                       #ShortDecl
 ;
 
 expressionList:
@@ -56,6 +61,7 @@ fieldDeclaration:
 functionDeclaration: 
     FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END  #FunctionDecl
 ;
+
 
 parameterList: 
     parameter (COMMA parameter)*                                            #ParamList
@@ -101,7 +107,6 @@ exprStmt:
 
 assignment:
     lvalue ASSIGN expr statementEnd                                         #AssignOpStatement
-    | lvalue S_ASSIGN expr statementEnd                                     #ShortAssignOpStatement
 ;
 
 inc_dec_stmt: 

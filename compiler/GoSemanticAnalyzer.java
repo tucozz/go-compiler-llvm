@@ -27,10 +27,21 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         this.foundSemanticErrors = false;
     }
 
-    public boolean hasSemanticErrors() { return foundSemanticErrors; }
-    public SymbolTable getSymbolTable() { return symbolTable; }
-    public StringTable getStringTable() { return stringTable; }
-    public FunctionTable getFunctionTable() { return functionTable; }
+    public boolean hasSemanticErrors() {
+        return foundSemanticErrors;
+    }
+
+    public SymbolTable getSymbolTable() {
+        return symbolTable;
+    }
+
+    public StringTable getStringTable() {
+        return stringTable;
+    }
+
+    public FunctionTable getFunctionTable() {
+        return functionTable;
+    }
 
     private void reportSemanticError(int lineNumber, String message) {
         System.err.println("SEMANTIC ERROR (" + lineNumber + "): " + message);
@@ -38,7 +49,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     }
 
     // --- CONSTRUÇÕES ESPECÍFICAS DA LINGUAGEM GO ---
-    
+
     /**
      * Override do visitador de programa para controlar melhor a visitação
      */
@@ -50,161 +61,145 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         }
         return null;
     }
-    
+
     // --- MÉTODOS DE DECLARAÇÃO ---
-    
+
     @Override
     public Void visitVarDecl(Go_Parser.VarDeclContext ctx) {
         visit(ctx.varSpec());
         return null;
     }
-    
+
     @Override
     public Void visitVarSingleSpec(Go_Parser.VarSingleSpecContext ctx) {
         String varName = ctx.ID().getText();
         String varType = ctx.typeSpec().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         if (!symbolTable.addEntry(varName, varType, lineNumber)) {
             SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
             reportSemanticError(lineNumber,
-            "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+                    "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
         }
-        // return super.visitVarSingleSpec(ctx);
-        
-        // Visitar expressão de inicialização, se existir
-        if (ctx.expr() != null) {
-            visit(ctx.expr());
-        }
-        return null;
+        return super.visitVarSingleSpec(ctx);
     }
-    
+
     @Override
     public Void visitVarMultiSpec(Go_Parser.VarMultiSpecContext ctx) {
         String varType = ctx.typeSpec().getText();
         for (int i = 0; i < ctx.ID().size(); i++) {
             String varName = ctx.ID(i).getText();
             int lineNumber = ctx.ID(i).getSymbol().getLine();
-            
+
             if (!symbolTable.addEntry(varName, varType, lineNumber)) {
                 SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
                 reportSemanticError(lineNumber,
-                "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+                        "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine()
+                                + ".");
             }
         }
         return super.visitVarMultiSpec(ctx);
     }
-    
+
     @Override
     public Void visitConstDecl(Go_Parser.ConstDeclContext ctx) {
         visit(ctx.constSpec());
         return null;
     }
-    
+
     @Override
     public Void visitConstSingleSpec(Go_Parser.ConstSingleSpecContext ctx) {
         String constName = ctx.ID().getText();
         String constType = ctx.typeSpec().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         if (!symbolTable.addEntry(constName, constType, lineNumber)) {
             reportSemanticError(lineNumber,
-            "constant '" + constName + "' already declared at line " + symbolTable.getEntry(constName).getDeclarationLine() + ".");
+                    "constant '" + constName + "' already declared at line "
+                            + symbolTable.getEntry(constName).getDeclarationLine() + ".");
         }
         return super.visitConstSingleSpec(ctx);
     }
-    
+
     @Override
     public Void visitConstMultiSpec(Go_Parser.ConstMultiSpecContext ctx) {
         String constType = ctx.typeSpec().getText();
         for (int i = 0; i < ctx.ID().size(); i++) {
             String constName = ctx.ID(i).getText();
             int lineNumber = ctx.ID(i).getSymbol().getLine();
-            
+
             if (!symbolTable.addEntry(constName, constType, lineNumber)) {
                 SymbolTableEntry existingEntry = symbolTable.getEntry(constName);
                 reportSemanticError(lineNumber,
-                "constant '" + constName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+                        "constant '" + constName + "' already declared at line " + existingEntry.getDeclarationLine()
+                                + ".");
             }
         }
         return super.visitConstMultiSpec(ctx);
     }
-    
+
+    @Override
+    public Void visitShortDecl(Go_Parser.ShortDeclContext ctx) {
+        // Declaração curta: lvalue S_ASSIGN expr
+        String varName = ctx.lvalue().getText();
+        String varType = "short"; // Tipo genérico para declaração curta
+        int lineNumber = ctx.lvalue().getStart().getLine();
+
+        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+            SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
+            reportSemanticError(lineNumber,
+                    "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+        }
+
+        // Visitar expressão de inicialização
+        visit(ctx.expr());
+        return null;
+    }
+
     @Override
     public Void visitTypeDecl(Go_Parser.TypeDeclContext ctx) {
         visit(ctx.typeStructDecl());
         return null;
     }
-    
+
     @Override
     public Void visitStructTypeDefinition(Go_Parser.StructTypeDefinitionContext ctx) {
         String typeName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         if (!symbolTable.addEntry(typeName, "struct " + typeName, lineNumber)) {
             reportSemanticError(lineNumber,
-                "type '" + typeName + "' already declared at line " + symbolTable.getEntry(typeName).getDeclarationLine() + ".");
-            }
-            return super.visitStructTypeDefinition(ctx);
+                    "type '" + typeName + "' already declared at line "
+                            + symbolTable.getEntry(typeName).getDeclarationLine() + ".");
+        }
+        return super.visitStructTypeDefinition(ctx);
     }
-        
+
     @Override
     public Void visitFieldDecl(Go_Parser.FieldDeclContext ctx) {
         String fieldName = ctx.ID().getText();
         String fieldType = ctx.typeSpec().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         if (!symbolTable.addEntry(fieldName, fieldType, lineNumber)) {
             reportSemanticError(lineNumber,
-            "field '" + fieldName + "' already declared at line " + symbolTable.getEntry(fieldName).getDeclarationLine() + ".");
+                    "field '" + fieldName + "' already declared at line "
+                            + symbolTable.getEntry(fieldName).getDeclarationLine() + ".");
         }
         return super.visitFieldDecl(ctx);
     }
-        
-    
-    // --- MÉTODOS DE ASSIGNMENT ---
-    @Override
-    public Void visitAssignOpStatement(Go_Parser.AssignOpStatementContext ctx) {
-        String varName = ctx.lvalue().getText();
-        int lineNumber = ctx.lvalue().getStart().getLine();
-        String varType = "assignment"; // Tipo genérico para atribuição
-        
-        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
-            SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
-            reportSemanticError(lineNumber,
-            "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
-        }
-        
-        return super.visitAssignOpStatement(ctx);
-    }
-    
-    @Override
-    public Void visitShortAssignOpStatement(Go_Parser.ShortAssignOpStatementContext ctx) {
-        String varName = ctx.lvalue().getText();
-        int lineNumber = ctx.lvalue().getStart().getLine();
-        String varType = "assignment"; // Tipo genérico para atribuição
-        
-        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
-            SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
-            reportSemanticError(lineNumber,
-            "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
-        }
-        
-        return super.visitShortAssignOpStatement(ctx);
-    }
-    
-    
+
     // --- ANÁLISE DE FUNÇÕES ---
-    
+
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
         String funcName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         // Coletar parâmetros
         List<String> paramNames = new ArrayList<>();
         List<String> paramTypes = new ArrayList<>();
-        
+
         if (ctx.parameterList() != null) {
             // Visitar cada parâmetro
             Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) ctx.parameterList();
@@ -216,50 +211,51 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 paramTypes.add(paramType);
             }
         }
-        
+
         // Determinar tipo de retorno
         String returnType = "void";
         if (ctx.typeSpec() != null) {
             returnType = ctx.typeSpec().getText();
         }
-        
+
         // Adicionar função à tabela
         if (!functionTable.addFunction(funcName, paramNames, paramTypes, returnType, lineNumber)) {
             FunctionInfo existing = functionTable.getFunction(funcName);
             reportSemanticError(lineNumber,
-            "function '" + funcName + "' already declared at line " + existing.getDeclarationLine() + ".");
+                    "function '" + funcName + "' already declared at line " + existing.getDeclarationLine() + ".");
         } else {
             // Marcar como definida (já que tem corpo)
             functionTable.markAsDefined(funcName);
         }
-        
+
         return super.visitFunctionDecl(ctx);
     }
-    
+
     @Override
     public Void visitParameterDeclaration(Go_Parser.ParameterDeclarationContext ctx) {
         String paramName = ctx.ID().getText();
         String paramType = ctx.typeSpec().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         if (!symbolTable.addEntry(paramName, paramType, lineNumber)) {
             reportSemanticError(lineNumber,
-            "parameter '" + paramName + "' already declared at line " + symbolTable.getEntry(paramName).getDeclarationLine() + ".");
+                    "parameter '" + paramName + "' already declared at line "
+                            + symbolTable.getEntry(paramName).getDeclarationLine() + ".");
         }
         return super.visitParameterDeclaration(ctx);
     }
-    
+
     @Override
     public Void visitCallExpression(Go_Parser.CallExpressionContext ctx) {
         String funcName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         // Verificar se função existe
         if (!functionTable.hasFunction(funcName)) {
             reportSemanticError(lineNumber, "function '" + funcName + "' is not declared.");
             return super.visitCallExpression(ctx);
         }
-        
+
         // Coletar tipos de argumentos
         List<String> argTypes = new ArrayList<>();
         if (ctx.expressionList() != null) {
@@ -269,17 +265,24 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 argTypes.add(argType);
             }
         }
-        
+
         // Verificar compatibilidade da chamada
         if (!functionTable.isValidCall(funcName, argTypes)) {
             FunctionInfo func = functionTable.getFunction(funcName);
             reportSemanticError(lineNumber,
-                "function call '" + funcName + "' has incompatible arguments. Expected: " + func.getSignature());
+                    "function call '" + funcName + "' has incompatible arguments. Expected: " + func.getSignature());
         }
-        
+
         return super.visitCallExpression(ctx);
     }
-    
+
+    @Override
+    public Void visitAssignOpStatement(Go_Parser.AssignOpStatementContext ctx) {
+        // Para atribuição (=), apenas verificar se a variável existe
+        // A verificação será feita automaticamente pelo visitIdLvalue
+        return super.visitAssignOpStatement(ctx);
+    }
+
     /**
      * Determina o tipo de uma expressão (versão simplificada)
      */
@@ -291,8 +294,8 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 return "int";
             } else if (primary.primaryExpr() instanceof Go_Parser.StringLiteralContext) {
                 return "string";
-            } else if (primary.primaryExpr() instanceof Go_Parser.TrueLiteralContext || 
-                      primary.primaryExpr() instanceof Go_Parser.FalseLiteralContext) {
+            } else if (primary.primaryExpr() instanceof Go_Parser.TrueLiteralContext ||
+                    primary.primaryExpr() instanceof Go_Parser.FalseLiteralContext) {
                 return "bool";
             } else if (primary.primaryExpr() instanceof Go_Parser.RealLiteralContext) {
                 return "float64";
@@ -306,7 +309,6 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 return "unknown";
             }
         }
-        
         // Para outros tipos de expressão, retornar um tipo padrão
         return "unknown";
     }
@@ -325,39 +327,39 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     public Void visitIdExpr(Go_Parser.IdExprContext ctx) {
         String varName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
-        
+
         // Ignorar palavras-chave e construções especiais da linguagem Go
         if (isGoKeyword(varName)) {
             return null; // Não processar como variável
         }
-        
+
         // Verificar se é uma função conhecida
         if (functionTable.hasFunction(varName)) {
             return null; // Função existe, OK
         }
-        
+
         // Verificar se variável foi declarada
         if (!symbolTable.contains(varName)) {
             reportSemanticError(lineNumber, "variable '" + varName + "' was not declared.");
         }
         return super.visitIdExpr(ctx);
     }
-    
+
     /**
      * Verifica se um identificador é uma palavra-chave ou construção especial do Go
      */
     private boolean isGoKeyword(String identifier) {
         // Palavras-chave da linguagem Go que não devem ser tratadas como variáveis
         String[] goKeywords = {
-            "package", "import", "func", "var", "const", "type", "struct",
-            "if", "else", "for", "switch", "case", "default", "return",
-            "break", "continue", "go", "defer", "select", "chan", "range",
-            "interface", "map", "make", "new", "append", "len", "cap",
-            "copy", "delete", "panic", "recover", "print", "println",
-            "true", "false", "nil", "iota",
-            "main", "fmt" // Nomes especiais comuns
+                "package", "import", "func", "var", "const", "type", "struct",
+                "if", "else", "for", "switch", "case", "default", "return",
+                "break", "continue", "go", "defer", "select", "chan", "range",
+                "interface", "map", "make", "new", "append", "len", "cap",
+                "copy", "delete", "panic", "recover", "print", "println",
+                "true", "false", "nil", "iota",
+                "main", "fmt" // Nomes especiais comuns
         };
-        
+
         for (String keyword : goKeywords) {
             if (keyword.equals(identifier)) {
                 return true;
@@ -381,11 +383,11 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitArrayAccessLvalue(ctx);
     }
 
-    
     @Override
     public Void visitStructAccessLvalue(Go_Parser.StructAccessLvalueContext ctx) {
         return super.visitStructAccessLvalue(ctx);
     }
+
     @Override
     public Void visitArrayIndex(Go_Parser.ArrayIndexContext ctx) {
         String varName = ctx.ID().getText();
