@@ -313,7 +313,27 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return "unknown";
     }
 
-    // --- MÉTODOS DE USO/VERIFICAÇÃO ---
+    @Override
+    public Void visitIfElseStatement(Go_Parser.IfElseStatementContext ctx) {
+        // Verificar condição principal do IF
+        String condType = determineExpressionType(ctx.expr(0));
+        if (!condType.equals("bool") && !condType.equals("unknown")) {
+            // Tentar obter linha da expressão
+            reportSemanticError(1, "if condition must be boolean, got: " + condType);
+        }
+
+        // Verificar condições dos ELSE IF (se existirem)
+        if (ctx.expr().size() > 1) {
+            for (int i = 1; i < ctx.expr().size(); i++) {
+                String elseIfCondType = determineExpressionType(ctx.expr(i));
+                if (!elseIfCondType.equals("bool") && !elseIfCondType.equals("unknown")) {
+                    reportSemanticError(1, "else if condition must be boolean, got: " + elseIfCondType);
+                }
+            }
+        }
+        // Visitar todos os filhos automaticamente
+        return super.visitIfElseStatement(ctx);
+    }
 
     @Override
     public Void visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
