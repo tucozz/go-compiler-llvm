@@ -156,39 +156,6 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return null;
     }
 
-    @Override
-    public Void visitTypeDecl(Go_Parser.TypeDeclContext ctx) {
-        visit(ctx.typeStructDecl());
-        return null;
-    }
-
-    @Override
-    public Void visitStructTypeDefinition(Go_Parser.StructTypeDefinitionContext ctx) {
-        String typeName = ctx.ID().getText();
-        int lineNumber = ctx.ID().getSymbol().getLine();
-
-        if (!symbolTable.addEntry(typeName, "struct " + typeName, lineNumber)) {
-            reportSemanticError(lineNumber,
-                    "type '" + typeName + "' already declared at line "
-                            + symbolTable.getEntry(typeName).getDeclarationLine() + ".");
-        }
-        return super.visitStructTypeDefinition(ctx);
-    }
-
-    @Override
-    public Void visitFieldDecl(Go_Parser.FieldDeclContext ctx) {
-        String fieldName = ctx.ID().getText();
-        String fieldType = ctx.typeSpec().getText();
-        int lineNumber = ctx.ID().getSymbol().getLine();
-
-        if (!symbolTable.addEntry(fieldName, fieldType, lineNumber)) {
-            reportSemanticError(lineNumber,
-                    "field '" + fieldName + "' already declared at line "
-                            + symbolTable.getEntry(fieldName).getDeclarationLine() + ".");
-        }
-        return super.visitFieldDecl(ctx);
-    }
-
     // --- ANÁLISE DE FUNÇÕES ---
 
     @Override
@@ -371,7 +338,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     private boolean isGoKeyword(String identifier) {
         // Palavras-chave da linguagem Go que não devem ser tratadas como variáveis
         String[] goKeywords = {
-                "package", "import", "func", "var", "const", "type", "struct",
+                "package", "import", "func", "var", "const", "type",
                 "if", "else", "for", "switch", "case", "default", "return",
                 "break", "continue", "go", "defer", "select", "chan", "range",
                 "interface", "map", "make", "new", "append", "len", "cap",
@@ -404,11 +371,6 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     }
 
     @Override
-    public Void visitStructAccessLvalue(Go_Parser.StructAccessLvalueContext ctx) {
-        return super.visitStructAccessLvalue(ctx);
-    }
-
-    @Override
     public Void visitArrayIndex(Go_Parser.ArrayIndexContext ctx) {
         String varName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
@@ -416,15 +378,5 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
             reportSemanticError(lineNumber, "variable '" + varName + "' was not declared.");
         }
         return super.visitArrayIndex(ctx);
-    }
-
-    @Override
-    public Void visitStructFieldAccess(Go_Parser.StructFieldAccessContext ctx) {
-        String varName = ctx.ID(0).getText();
-        int lineNumber = ctx.ID(0).getSymbol().getLine();
-        if (!symbolTable.contains(varName)) {
-            reportSemanticError(lineNumber, "variable '" + varName + "' was not declared.");
-        }
-        return super.visitStructFieldAccess(ctx);
     }
 }

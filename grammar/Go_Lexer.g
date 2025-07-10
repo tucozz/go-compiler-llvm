@@ -19,7 +19,6 @@ FUNC    : 'func' ;
 VAR     : 'var' ;
 CONST   : 'const' ;
 TYPE    : 'type' ;
-STRUCT  : 'struct' ;
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
@@ -65,7 +64,6 @@ C_BRA_END : '}' ;
 SEMICOLON : ';' ;
 COLON     : ':' ;
 COMMA     : ',' ;
-DOT       : '.' ;
 
 POS_INT : DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS ; 
 NEG_INT : '-' (DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS) ; 

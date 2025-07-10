@@ -11,7 +11,6 @@ program:
 declaration:
     varDeclaration 
     | constDeclaration
-    | typeDeclaration 
     | functionDeclaration 
     | shortDeclaration
 ;
@@ -42,26 +41,9 @@ expressionList:
     expr (COMMA expr)*                                                      #ExprList
 ;
 
-typeDeclaration: 
-    TYPE typeStructDecl statementEnd                                        #TypeDecl
-;
-
-typeStructDecl:
-    ID structType                                                           #StructTypeDefinition
-;
-
-structType: 
-    STRUCT C_BRA_INT (fieldDeclaration)* C_BRA_END                          #StructLiteral
-;
-
-fieldDeclaration: 
-    ID typeSpec statementEnd                                                #FieldDecl
-;
-
 functionDeclaration: 
     FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END  #FunctionDecl
 ;
-
 
 parameterList: 
     parameter (COMMA parameter)*                                            #ParamList
@@ -159,13 +141,11 @@ primaryExpr:
     | PAR_INT expr PAR_END                                                  #ParenthesizedExpr
     | functionCall                                                          #FuncCallExpr
     | arrayAccess                                                           #ArrayAccessExpr
-    | structAccess                                                          #StructAccessExpr
 ;
 
 lvalue:
     ID                                                                      #IdLvalue
     | arrayAccess                                                           #ArrayAccessLvalue
-    | structAccess                                                          #StructAccessLvalue
 ;
 
 functionCall: 
@@ -174,10 +154,6 @@ functionCall:
 
 arrayAccess: 
     ID S_BRA_INT expr S_BRA_END                                             #ArrayIndex
-;
-
-structAccess: 
-    ID (DOT ID)+                                                            #StructFieldAccess
 ;
 
 relation_op:
