@@ -58,9 +58,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
 
     // --- CONSTRUÇÕES ESPECÍFICAS DA LINGUAGEM GO ---
 
-    /**
-     * Override do visitador de programa para controlar melhor a visitação
-     */
+    // Visita a regra program: (statement)* EOF
     @Override
     public Void visitProgramRule(Go_Parser.ProgramRuleContext ctx) {
         // Visitar apenas os statements que são relevantes para análise semântica
@@ -72,12 +70,14 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
 
     // --- MÉTODOS DE DECLARAÇÃO ---
 
+    // Visita a regra varDeclaration: VAR varSpec statementEnd
     @Override
     public Void visitVarDecl(Go_Parser.VarDeclContext ctx) {
         visit(ctx.varSpec());
         return null;
     }
 
+    // Visita a regra varSpec: ID typeSpec (ASSIGN expr)?
     @Override
     public Void visitVarSingleSpec(Go_Parser.VarSingleSpecContext ctx) {
         String varName = ctx.ID().getText();
@@ -96,6 +96,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitVarSingleSpec(ctx);
     }
 
+    // Visita a regra varSpec: ID (COMMA ID)* typeSpec ASSIGN expressionList
     @Override
     public Void visitVarMultiSpec(Go_Parser.VarMultiSpecContext ctx) {
         String varTypeStr = ctx.typeSpec().getText();
@@ -118,12 +119,14 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitVarMultiSpec(ctx);
     }
 
+    // Visita a regra constDeclaration: CONST constSpec statementEnd
     @Override
     public Void visitConstDecl(Go_Parser.ConstDeclContext ctx) {
         visit(ctx.constSpec());
         return null;
     }
 
+    // Visita a regra constSpec: ID typeSpec (ASSIGN expr)?
     @Override
     public Void visitConstSingleSpec(Go_Parser.ConstSingleSpecContext ctx) {
         String constName = ctx.ID().getText();
@@ -142,6 +145,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitConstSingleSpec(ctx);
     }
 
+    // Visita a regra constSpec: ID (COMMA ID)* typeSpec ASSIGN expressionList
     @Override
     public Void visitConstMultiSpec(Go_Parser.ConstMultiSpecContext ctx) {
         String constTypeStr = ctx.typeSpec().getText();
@@ -164,6 +168,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitConstMultiSpec(ctx);
     }
 
+    // Visita a regra shortDeclaration: lvalue S_ASSIGN expr statementEnd
     @Override
     public Void visitShortDecl(Go_Parser.ShortDeclContext ctx) {
         // Declaração curta: lvalue S_ASSIGN expr
@@ -191,6 +196,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
 
     // --- ANÁLISE DE FUNÇÕES ---
 
+    // Visita a regra functionDeclaration: FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
         String funcName = ctx.ID().getText();
@@ -231,6 +237,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitFunctionDecl(ctx);
     }
 
+    // Visita a regra parameter: ID typeSpec
     @Override
     public Void visitParameterDeclaration(Go_Parser.ParameterDeclarationContext ctx) {
         String paramName = ctx.ID().getText();
@@ -245,6 +252,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitParameterDeclaration(ctx);
     }
 
+    // Visita a regra functionCall: ID PAR_INT (expressionList)? PAR_END
     @Override
     public Void visitCallExpression(Go_Parser.CallExpressionContext ctx) {
         String funcName = ctx.ID().getText();
@@ -276,6 +284,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitCallExpression(ctx);
     }
 
+    // Visita a regra assignment: lvalue ASSIGN expr statementEnd
     @Override
     public Void visitAssignOpStatement(Go_Parser.AssignOpStatementContext ctx) {
         // Para atribuição (=), apenas verificar se a variável existe
@@ -335,6 +344,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitIfElseStatement(ctx);
     }
 
+    // Visita a regra primaryExpr: STRINGF
     @Override
     public Void visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
         String stringValueWithQuotes = ctx.STRINGF().getText();
@@ -343,6 +353,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitStringLiteral(ctx);
     }
 
+    // Visita a regra primaryExpr: ID
     @Override
     public Void visitIdExpr(Go_Parser.IdExprContext ctx) {
         String varName = ctx.ID().getText();
@@ -388,6 +399,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return false;
     }
 
+    // Visita a regra lvalue: ID
     @Override
     public Void visitIdLvalue(Go_Parser.IdLvalueContext ctx) {
         String varName = ctx.ID().getText();
@@ -398,11 +410,13 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitIdLvalue(ctx);
     }
 
+    // Visita a regra lvalue: arrayAccess
     @Override
     public Void visitArrayAccessLvalue(Go_Parser.ArrayAccessLvalueContext ctx) {
         return super.visitArrayAccessLvalue(ctx);
     }
 
+    // Visita a regra arrayAccess: ID S_BRA_INT expr S_BRA_END
     @Override
     public Void visitArrayIndex(Go_Parser.ArrayIndexContext ctx) {
         String varName = ctx.ID().getText();
@@ -413,8 +427,126 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         return super.visitArrayIndex(ctx);
     }
 
+    // Visita a regra expr: expr (PLUS | MINUS) expr
+    @Override
+    public Void visitAddSubExpr(Go_Parser.AddSubExprContext ctx) {
+        GoType leftType = determineExpressionGoType(ctx.expr(0));
+        GoType rightType = determineExpressionGoType(ctx.expr(1));
+        
+        String operator = ctx.getChild(1).getText(); // + ou -
+        GoType resultType;
+        
+        if (operator.equals("+")) {
+            resultType = leftType.unifyPlus(rightType);
+        } else {
+            resultType = leftType.unifyArithmetic(rightType);
+        }
+        
+        if (resultType == GoType.NO_TYPE) {
+            int lineNumber = ctx.getStart().getLine();
+            reportSemanticError(lineNumber, 
+                "invalid operation: " + operator + " between " + leftType + " and " + rightType);
+        }
+        
+        return super.visitAddSubExpr(ctx);
+    }
+
+    // Visita a regra expr: expr (TIMES | OVER | MOD) expr
+    @Override
+    public Void visitMultiplyDivideModExpr(Go_Parser.MultiplyDivideModExprContext ctx) {
+        GoType leftType = determineExpressionGoType(ctx.expr(0));
+        GoType rightType = determineExpressionGoType(ctx.expr(1));
+        
+        GoType resultType = leftType.unifyArithmetic(rightType);
+        
+        if (resultType == GoType.NO_TYPE) {
+            int lineNumber = ctx.getStart().getLine();
+            String operator = ctx.getChild(1).getText();
+            reportSemanticError(lineNumber, 
+                "invalid operation: " + operator + " between " + leftType + " and " + rightType);
+        }
+        
+        return super.visitMultiplyDivideModExpr(ctx);
+    }
+
+    // Visita a regra expr: expr relation_op expr
+    @Override
+    public Void visitComparisonExpr(Go_Parser.ComparisonExprContext ctx) {
+        GoType leftType = determineExpressionGoType(ctx.expr(0));
+        GoType rightType = determineExpressionGoType(ctx.expr(1));
+        
+        GoType resultType = leftType.unifyComparison(rightType);
+        
+        if (resultType == GoType.NO_TYPE) {
+            int lineNumber = ctx.getStart().getLine();
+            String operator = ctx.relation_op().getText();
+            reportSemanticError(lineNumber, 
+                "invalid comparison: " + operator + " between " + leftType + " and " + rightType);
+        }
+        
+        return super.visitComparisonExpr(ctx);
+    }
+
+    // Visita a regra expr: expr AND expr
+    @Override
+    public Void visitLogicalANDExpr(Go_Parser.LogicalANDExprContext ctx) {
+        GoType leftType = determineExpressionGoType(ctx.expr(0));
+        GoType rightType = determineExpressionGoType(ctx.expr(1));
+        
+        GoType resultType = leftType.unifyLogical(rightType);
+        
+        if (resultType == GoType.NO_TYPE) {
+            int lineNumber = ctx.getStart().getLine();
+            reportSemanticError(lineNumber, 
+                "invalid logical operation: && between " + leftType + " and " + rightType);
+        }
+        
+        return super.visitLogicalANDExpr(ctx);
+    }
+
+    // Visita a regra expr: expr OR expr
+    @Override
+    public Void visitLogicalORExpr(Go_Parser.LogicalORExprContext ctx) {
+        GoType leftType = determineExpressionGoType(ctx.expr(0));
+        GoType rightType = determineExpressionGoType(ctx.expr(1));
+        
+        GoType resultType = leftType.unifyLogical(rightType);
+        
+        if (resultType == GoType.NO_TYPE) {
+            int lineNumber = ctx.getStart().getLine();
+            reportSemanticError(lineNumber, 
+                "invalid logical operation: || between " + leftType + " and " + rightType);
+        }
+        
+        return super.visitLogicalORExpr(ctx);
+    }
+
+    // Visita a regra expr: (PLUS | MINUS | NOT) expr
+    @Override
+    public Void visitUnaryPrefixExpr(Go_Parser.UnaryPrefixExprContext ctx) {
+        GoType exprType = determineExpressionGoType(ctx.expr());
+        String operator = ctx.getChild(0).getText();
+        
+        // Verificar se operador unário é válido para o tipo
+        if (operator.equals("+") || operator.equals("-")) {
+            if (!exprType.isNumeric()) {
+                int lineNumber = ctx.getStart().getLine();
+                reportSemanticError(lineNumber, 
+                    "invalid operation: unary " + operator + " on " + exprType);
+            }
+        } else if (operator.equals("!")) {
+            if (!exprType.isBooleanContext()) {
+                int lineNumber = ctx.getStart().getLine();
+                reportSemanticError(lineNumber, 
+                    "invalid operation: unary ! on " + exprType + " (expected bool)");
+            }
+        }
+        
+        return super.visitUnaryPrefixExpr(ctx);
+    }
+
     /**
-     * Determina o tipo GoType de uma expressão
+     * Determina o tipo GoType de uma expressão (versão melhorada)
      */
     private GoType determineExpressionGoType(Go_Parser.ExprContext ctx) {
         if (ctx instanceof Go_Parser.PrimaryOrPostfixExprContext) {
@@ -434,7 +566,29 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 GoType varType = typeTable.getVariableType(varName);
                 return varType != null ? varType : GoType.UNKNOWN;
             }
+        } else if (ctx instanceof Go_Parser.AddSubExprContext) {
+            // Para expressões binárias, calcular o tipo resultado
+            Go_Parser.AddSubExprContext addSub = (Go_Parser.AddSubExprContext) ctx;
+            GoType leftType = determineExpressionGoType(addSub.expr(0));
+            GoType rightType = determineExpressionGoType(addSub.expr(1));
+            String operator = addSub.getChild(1).getText();
+            
+            if (operator.equals("+")) {
+                return leftType.unifyPlus(rightType);
+            } else {
+                return leftType.unifyArithmetic(rightType);
+            }
+        } else if (ctx instanceof Go_Parser.MultiplyDivideModExprContext) {
+            Go_Parser.MultiplyDivideModExprContext multDiv = (Go_Parser.MultiplyDivideModExprContext) ctx;
+            GoType leftType = determineExpressionGoType(multDiv.expr(0));
+            GoType rightType = determineExpressionGoType(multDiv.expr(1));
+            return leftType.unifyArithmetic(rightType);
+        } else if (ctx instanceof Go_Parser.ComparisonExprContext) {
+            return GoType.BOOL; // Comparações sempre retornam bool
+        } else if (ctx instanceof Go_Parser.LogicalANDExprContext || ctx instanceof Go_Parser.LogicalORExprContext) {
+            return GoType.BOOL; // Operações lógicas sempre retornam bool
         }
+        
         return GoType.UNKNOWN;
     }
 }
