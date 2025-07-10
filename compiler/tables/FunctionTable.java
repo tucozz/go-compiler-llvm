@@ -14,25 +14,25 @@ public class FunctionTable {
     
     public FunctionTable() {
         this.functions = new HashMap<>();
-        // addBuiltInFunctions(); // Commented out for testing
+        addBuiltInFunctions();
     }
     
     /**
      * Adiciona funções built-in do Go
      */
     private void addBuiltInFunctions() {
-        // println function
+        // println function - aceita qualquer tipo
         List<String> printlnParamNames = new ArrayList<>();
         List<String> printlnParamTypes = new ArrayList<>();
         printlnParamNames.add("args");
-        printlnParamTypes.add("string");
+        printlnParamTypes.add("string"); // Simplificado para string por enquanto
         addFunction("println", printlnParamNames, printlnParamTypes, "void", 0);
         
-        // len function
+        // len function - retorna int
         List<String> lenParamNames = new ArrayList<>();
         List<String> lenParamTypes = new ArrayList<>();
         lenParamNames.add("obj");
-        lenParamTypes.add("string");
+        lenParamTypes.add("string"); // Simplificado para string por enquanto
         addFunction("len", lenParamNames, lenParamTypes, "int", 0);
         
         // Marca como definidas

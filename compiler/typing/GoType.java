@@ -29,7 +29,8 @@ public enum GoType {
     // Tipos especiais
     VOID("void"),
     UNKNOWN("unknown"),
-    AUTO("auto"); // Para inferência de tipo
+    AUTO("auto"), // Para inferência de tipo
+    NO_TYPE("no_type"); // Para operações inválidas
 
     private final String typeName;
 
@@ -79,6 +80,88 @@ public enum GoType {
     }
 
     /**
+     * Mapeia tipos Go para índices das tabelas de unificação
+     */
+    private int getUnificationIndex() {
+        if (isInteger()) return 0;      // Inteiros
+        if (isFloat()) return 1;        // Ponto flutuante
+        if (this == BOOL) return 2;     // Booleano
+        if (this == STRING) return 3;   // String
+        return 4;                       // Tipos inválidos/desconhecidos
+    }
+
+
+    // Tabela de unificação para operador '+' (adição/concatenação)
+    private static final GoType[][] plusTable = {
+        //           INT    FLOAT   BOOL    STRING  INVALID
+        /* INT */    { INT,     FLOAT64, NO_TYPE, STRING, NO_TYPE },
+        /* FLOAT */  { FLOAT64, FLOAT64, NO_TYPE, STRING, NO_TYPE },
+        /* BOOL */   { NO_TYPE, NO_TYPE, NO_TYPE, STRING, NO_TYPE },
+        /* STRING */ { STRING,  STRING,  STRING,  STRING, NO_TYPE },
+        /* INVALID */{ NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE }
+    };
+
+
+    // Tabela de unificação para operadores aritméticos (-, *, /, %)
+    private static final GoType[][] arithmeticTable = {
+        //           INT    FLOAT   BOOL    STRING  INVALID
+        /* INT */    { INT,     FLOAT64, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* FLOAT */  { FLOAT64, FLOAT64, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* BOOL */   { NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* STRING */ { NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* INVALID */{ NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE }
+    };
+
+    // Tabela de unificação para operadores de comparação (<, >, <=, >=, ==, !=)
+    private static final GoType[][] comparisonTable = {
+        //           INT    FLOAT   BOOL    STRING  INVALID
+        /* INT */    { BOOL,    BOOL,    NO_TYPE, NO_TYPE, NO_TYPE },
+        /* FLOAT */  { BOOL,    BOOL,    NO_TYPE, NO_TYPE, NO_TYPE },
+        /* BOOL */   { NO_TYPE, NO_TYPE, BOOL,    NO_TYPE, NO_TYPE },
+        /* STRING */ { NO_TYPE, NO_TYPE, NO_TYPE, BOOL,    NO_TYPE },
+        /* INVALID */{ NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE }
+    };
+
+    // Tabela de unificação para operadores lógicos (&&, ||)
+    private static final GoType[][] logicalTable = {
+        //           INT    FLOAT   BOOL    STRING  INVALID
+        /* INT */    { NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* FLOAT */  { NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* BOOL */   { NO_TYPE, NO_TYPE, BOOL,    NO_TYPE, NO_TYPE },
+        /* STRING */ { NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE },
+        /* INVALID */{ NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE }
+    };
+
+    /**
+     * Unifica tipos para operador de adição/concatenação
+     */
+    public GoType unifyPlus(GoType other) {
+        return plusTable[this.getUnificationIndex()][other.getUnificationIndex()];
+    }
+
+    /**
+     * Unifica tipos para operadores aritméticos (-, *, /, %)
+     */
+    public GoType unifyArithmetic(GoType other) {
+        return arithmeticTable[this.getUnificationIndex()][other.getUnificationIndex()];
+    }
+
+
+    /**
+     * Unifica tipos para operadores de comparação
+     */
+    public GoType unifyComparison(GoType other) {
+        return comparisonTable[this.getUnificationIndex()][other.getUnificationIndex()];
+    }
+
+    /**
+     * Unifica tipos para operadores lógicos
+     */
+    public GoType unifyLogical(GoType other) {
+        return logicalTable[this.getUnificationIndex()][other.getUnificationIndex()];
+    }
+
+    /**
      * Verifica se dois tipos são compatíveis para operações
      */
     public boolean isCompatibleWith(GoType other) {
@@ -91,6 +174,13 @@ public enum GoType {
         }
 
         return false;
+    }
+
+    /**
+     * Verifica se o tipo pode ser usado em contexto booleano
+     */
+    public boolean isBooleanContext() {
+        return this == BOOL;
     }
 
     @Override
