@@ -1,18 +1,23 @@
 func main() {
+	var a int
+    var b float64
+    var c bool
+    var d string
+
 	a = 5 / 5;
-	b = 5 / 5.0;
-	c = 5 / true;
-	d = 5 / "Hello";
-	e = 5.0 / 5;
-	f = 5.0 / 5.0;
-	g = 5.0 / true;
-	h = 5.0 / "Hello";
-	i = true / 5;
-	j = true / 5.0;
-	k = true / true;
-	l = true / "Hello";
-	m = "Hello" / 5;
-	n = "Hello" / 5.0;
-	o = "Hello" / true;
-	p = "Hello" / "World";
+	a = 5 / 5.0;
+	a = 5 / true;
+	a = 5 / "Hello";
+	b = 5.0 / 5;
+	b = 5.0 / 5.0;
+	b = 5.0 / true;
+	b = 5.0 / "Hello";
+	c = true / 5;
+	c = true / 5.0;
+	c = true / true;
+	c = true / "Hello";
+	d = "Hello" / 5;
+	d = "Hello" / 5.0;
+	d = "Hello" / true;
+	d = "Hello" / "World";
 }
