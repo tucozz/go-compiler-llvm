@@ -113,7 +113,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                                 + ".");
             } else {
                 // Adicionar à tabela de tipos
-                typeTable.addVariable(varName, varType);  // <-- NOVA LINHA
+                typeTable.addVariable(varName, varType);
             }
         }
         return super.visitVarMultiSpec(ctx);
@@ -162,7 +162,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                                 + ".");
             } else {
                 // Adicionar à tabela de tipos
-                typeTable.addVariable(constName, constType);  // <-- NOVA LINHA
+                typeTable.addVariable(constName, constType);
             }
         }
         return super.visitConstMultiSpec(ctx);
@@ -287,9 +287,25 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     // Visita a regra assignment: lvalue ASSIGN expr statementEnd
     @Override
     public Void visitAssignOpStatement(Go_Parser.AssignOpStatementContext ctx) {
-        // Para atribuição (=), apenas verificar se a variável existe
-        // A verificação será feita automaticamente pelo visitIdLvalue
-        return super.visitAssignOpStatement(ctx);
+        // Verificar compatibilidade de tipos na atribuição
+        visit(ctx.lvalue());
+        visit(ctx.expr());
+        
+        // Obter tipo da variável à esquerda
+        String varName = ctx.lvalue().getText();
+        GoType varType = typeTable.getVariableType(varName);
+        
+        // Obter tipo da expressão à direita
+        GoType exprType = determineExpressionGoType(ctx.expr());
+        
+        // Verificar compatibilidade
+        if (varType != null && exprType != GoType.UNKNOWN && !varType.equals(exprType)) {
+            int lineNumber = ctx.getStart().getLine();
+            reportSemanticError(lineNumber, 
+                "cannot assign " + exprType + " to variable of type " + varType);
+        }
+        
+        return null;
     }
 
     /**
@@ -325,18 +341,19 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     @Override
     public Void visitIfElseStatement(Go_Parser.IfElseStatementContext ctx) {
         // Verificar condição principal do IF
-        String condType = determineExpressionType(ctx.expr(0));
-        if (!condType.equals("bool") && !condType.equals("unknown")) {
-            // Tentar obter linha da expressão
-            reportSemanticError(1, "if condition must be boolean, got: " + condType);
+        GoType condType = determineExpressionGoType(ctx.expr(0));
+        if (!condType.isBooleanContext() && condType != GoType.UNKNOWN) {
+            int lineNumber = ctx.expr(0).getStart().getLine();
+            reportSemanticError(lineNumber, "if condition must be boolean, got: " + condType);
         }
 
         // Verificar condições dos ELSE IF (se existirem)
         if (ctx.expr().size() > 1) {
             for (int i = 1; i < ctx.expr().size(); i++) {
-                String elseIfCondType = determineExpressionType(ctx.expr(i));
-                if (!elseIfCondType.equals("bool") && !elseIfCondType.equals("unknown")) {
-                    reportSemanticError(1, "else if condition must be boolean, got: " + elseIfCondType);
+                GoType elseIfCondType = determineExpressionGoType(ctx.expr(i));
+                if (!elseIfCondType.isBooleanContext() && elseIfCondType != GoType.UNKNOWN) {
+                    int lineNumber = ctx.expr(i).getStart().getLine();
+                    reportSemanticError(lineNumber, "else if condition must be boolean, got: " + elseIfCondType);
                 }
             }
         }
@@ -388,7 +405,7 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
                 "interface", "map", "make", "new", "append", "len", "cap",
                 "copy", "delete", "panic", "recover", "print", "println",
                 "true", "false", "nil", "iota",
-                "main", "fmt" // Nomes especiais comuns
+                "main", "fmt"
         };
 
         for (String keyword : goKeywords) {
@@ -421,9 +438,19 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     public Void visitArrayIndex(Go_Parser.ArrayIndexContext ctx) {
         String varName = ctx.ID().getText();
         int lineNumber = ctx.ID().getSymbol().getLine();
+        
         if (!symbolTable.contains(varName)) {
             reportSemanticError(lineNumber, "variable '" + varName + "' was not declared.");
         }
+        
+        // Verificar se o índice é do tipo inteiro
+        GoType indexType = determineExpressionGoType(ctx.expr());
+        if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
+            int indexLineNumber = ctx.expr().getStart().getLine();
+            reportSemanticError(indexLineNumber, 
+                "array index must be integer, got: " + indexType);
+        }
+        
         return super.visitArrayIndex(ctx);
     }
 
@@ -546,49 +573,79 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     }
 
     /**
-     * Determina o tipo GoType de uma expressão (versão melhorada)
+     * Determina o tipo GoType de uma expressão
+     * Este método analisa diferentes tipos de expressões e retorna o tipo resultante
      */
     private GoType determineExpressionGoType(Go_Parser.ExprContext ctx) {
+        // Verificar se é uma expressão primária ou postfix (literais, identificadores, chamadas de função)
         if (ctx instanceof Go_Parser.PrimaryOrPostfixExprContext) {
             Go_Parser.PrimaryOrPostfixExprContext primary = (Go_Parser.PrimaryOrPostfixExprContext) ctx;
+            
+            // Verificar diferentes tipos de literais
             if (primary.primaryExpr() instanceof Go_Parser.IntLiteralContext) {
-                return GoType.INT;
+                return GoType.INT; // Literal inteiro
             } else if (primary.primaryExpr() instanceof Go_Parser.StringLiteralContext) {
-                return GoType.STRING;
+                return GoType.STRING; // Literal string
             } else if (primary.primaryExpr() instanceof Go_Parser.TrueLiteralContext ||
                     primary.primaryExpr() instanceof Go_Parser.FalseLiteralContext) {
-                return GoType.BOOL;
+                return GoType.BOOL; // Literal booleano (true/false)
             } else if (primary.primaryExpr() instanceof Go_Parser.RealLiteralContext) {
-                return GoType.FLOAT64;
+                return GoType.FLOAT64; // Literal float
             } else if (primary.primaryExpr() instanceof Go_Parser.IdExprContext) {
-                // Buscar tipo da variável na tabela de tipos
+                // Identificador - buscar tipo da variável na tabela de tipos
                 String varName = ((Go_Parser.IdExprContext) primary.primaryExpr()).ID().getText();
                 GoType varType = typeTable.getVariableType(varName);
                 return varType != null ? varType : GoType.UNKNOWN;
             }
+
+        // Verificar se é uma expressão de adição ou subtração
         } else if (ctx instanceof Go_Parser.AddSubExprContext) {
-            // Para expressões binárias, calcular o tipo resultado
             Go_Parser.AddSubExprContext addSub = (Go_Parser.AddSubExprContext) ctx;
+            // Obter tipos dos operandos esquerdo e direito
             GoType leftType = determineExpressionGoType(addSub.expr(0));
             GoType rightType = determineExpressionGoType(addSub.expr(1));
             String operator = addSub.getChild(1).getText();
             
+            // Para adição, usar unifyPlus (permite concatenação de strings)
             if (operator.equals("+")) {
                 return leftType.unifyPlus(rightType);
             } else {
+                // Para subtração, usar unifyArithmetic (apenas números)
                 return leftType.unifyArithmetic(rightType);
             }
+            
+        // Verificar se é uma expressão de multiplicação, divisão ou módulo
         } else if (ctx instanceof Go_Parser.MultiplyDivideModExprContext) {
             Go_Parser.MultiplyDivideModExprContext multDiv = (Go_Parser.MultiplyDivideModExprContext) ctx;
+            // Obter tipos dos operandos e unificar aritmeticamente
             GoType leftType = determineExpressionGoType(multDiv.expr(0));
             GoType rightType = determineExpressionGoType(multDiv.expr(1));
             return leftType.unifyArithmetic(rightType);
+            
+        // Verificar se é uma expressão de comparação
         } else if (ctx instanceof Go_Parser.ComparisonExprContext) {
             return GoType.BOOL; // Comparações sempre retornam bool
+            
+        // Verificar se é uma expressão lógica (AND/OR)
         } else if (ctx instanceof Go_Parser.LogicalANDExprContext || ctx instanceof Go_Parser.LogicalORExprContext) {
             return GoType.BOOL; // Operações lógicas sempre retornam bool
+            
+        // Verificar se é uma expressão unária (prefixo)
+        } else if (ctx instanceof Go_Parser.UnaryPrefixExprContext) {
+            Go_Parser.UnaryPrefixExprContext unary = (Go_Parser.UnaryPrefixExprContext) ctx;
+            String operator = unary.getChild(0).getText();
+            GoType exprType = determineExpressionGoType(unary.expr());
+            
+            // Operador NOT sempre retorna bool
+            if (operator.equals("!")) {
+                return GoType.BOOL;
+            // Operadores + e - unários mantêm o tipo original
+            } else if (operator.equals("+") || operator.equals("-")) {
+                return exprType; // Mantém o tipo original para +/- unário
+            }
         }
         
+        // Se não conseguiu determinar o tipo, retornar UNKNOWN
         return GoType.UNKNOWN;
     }
 }

@@ -97,7 +97,7 @@ public enum GoType {
         /* INT */    { INT,     FLOAT64, NO_TYPE, STRING, NO_TYPE },
         /* FLOAT */  { FLOAT64, FLOAT64, NO_TYPE, STRING, NO_TYPE },
         /* BOOL */   { NO_TYPE, NO_TYPE, NO_TYPE, STRING, NO_TYPE },
-        /* STRING */ { STRING,  STRING,  STRING,  STRING, NO_TYPE },
+        /* STRING */ { NO_TYPE,  NO_TYPE,  NO_TYPE,  STRING, NO_TYPE },
         /* INVALID */{ NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE, NO_TYPE }
     };
 
