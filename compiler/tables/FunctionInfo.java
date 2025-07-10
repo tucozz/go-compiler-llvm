@@ -1,5 +1,6 @@
 package compiler.tables;
 
+import compiler.typing.GoType;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -9,12 +10,13 @@ import java.util.ArrayList;
 public class FunctionInfo {
     private String name;
     private List<String> parameterNames;
-    private List<String> parameterTypes;
-    private String returnType;
+    private List<GoType> parameterTypes;
+    private GoType returnType;
     private int declarationLine;
     private boolean isDefined;
-    
-    public FunctionInfo(String name, List<String> parameterNames, List<String> parameterTypes, String returnType, int declarationLine) {
+
+    public FunctionInfo(String name, List<String> parameterNames, List<GoType> parameterTypes, GoType returnType,
+            int declarationLine) {
         this.name = name;
         this.parameterNames = new ArrayList<>(parameterNames);
         this.parameterTypes = new ArrayList<>(parameterTypes);
@@ -22,92 +24,161 @@ public class FunctionInfo {
         this.declarationLine = declarationLine;
         this.isDefined = false;
     }
-    
+
+    // Construtor alternativo que aceita strings para os tipos (para
+    // compatibilidade)
+    public FunctionInfo(String name, List<String> parameterNames, List<String> parameterTypesStr, String returnTypeStr,
+            int declarationLine) {
+        this.name = name;
+        this.parameterNames = new ArrayList<>(parameterNames);
+        this.parameterTypes = new ArrayList<>();
+
+        // Converter strings para GoType
+        for (String typeStr : parameterTypesStr) {
+            this.parameterTypes.add(GoType.fromString(typeStr));
+        }
+
+        this.returnType = GoType.fromString(returnTypeStr);
+        this.declarationLine = declarationLine;
+        this.isDefined = false;
+    }
+
     // Getters
-    public String getName() { return name; }
-    public List<String> getParameterNames() { return new ArrayList<>(parameterNames); }
-    public List<String> getParameterTypes() { return new ArrayList<>(parameterTypes); }
-    public String getReturnType() { return returnType; }
-    public int getDeclarationLine() { return declarationLine; }
-    public boolean isDefined() { return isDefined; }
-    public int getParameterCount() { return parameterNames.size(); }
-    
+    public String getName() {
+        return name;
+    }
+
+    public List<String> getParameterNames() {
+        return new ArrayList<>(parameterNames);
+    }
+
+    public List<GoType> getParameterTypes() {
+        return new ArrayList<>(parameterTypes);
+    }
+
+    public GoType getReturnType() {
+        return returnType;
+    }
+
+    public int getDeclarationLine() {
+        return declarationLine;
+    }
+
+    public boolean isDefined() {
+        return isDefined;
+    }
+
+    public int getParameterCount() {
+        return parameterNames.size();
+    }
+
+    // Getter para compatibilidade com código existente que espera strings
+    public List<String> getParameterTypesAsString() {
+        List<String> typeStrings = new ArrayList<>();
+        for (GoType type : parameterTypes) {
+            typeStrings.add(type.toString());
+        }
+        return typeStrings;
+    }
+
+    public String getReturnTypeAsString() {
+        return returnType.toString();
+    }
+
     // Setters
-    public void setDefined(boolean defined) { this.isDefined = defined; }
-    
-    /**
-     * Verifica se uma chamada de função é compatível
+    public void setDefined(boolean defined) {
+        this.isDefined = defined;
+    }
+
+    // /**
+    //  * Verifica se uma chamada de função é compatível
+    //  */
+    // public boolean isCallCompatible(List<String> argumentTypeStrings) {
+    //     if (parameterTypes.size() != argumentTypeStrings.size()) {
+    //         return false;
+    //     }
+
+    //     for (int i = 0; i < parameterTypes.size(); i++) {
+    //         GoType paramType = parameterTypes.get(i);
+    //         GoType argType = GoType.fromString(argumentTypeStrings.get(i));
+
+    //         if (!paramType.isCompatibleWith(argType)) {
+    //             return false;
+    //         }
+    //     }
+
+    //     return true;
+    // }
+        /**
+     * Verifica se uma chamada de função é compatível com os tipos de argumentos fornecidos
      */
-    public boolean isCallCompatible(List<String> argumentTypes) {
-        if (parameterTypes.size() != argumentTypes.size()) {
+    public boolean isCallCompatible(List<GoType> argumentTypes) {
+        // Verificar se o número de argumentos está correto
+        if (argumentTypes.size() != parameterTypes.size()) {
             return false;
         }
         
-        for (int i = 0; i < parameterTypes.size(); i++) {
-            String paramType = parameterTypes.get(i);
-            String argType = argumentTypes.get(i);
+        // Verificar se cada tipo de argumento é compatível com o tipo do parâmetro
+        for (int i = 0; i < argumentTypes.size(); i++) {
+            GoType paramType = parameterTypes.get(i);
+            GoType argType = argumentTypes.get(i);
             
-            if (!isTypeCompatible(paramType, argType)) {
+            // Se algum tipo é UNKNOWN, consideramos compatível (pode ser um erro anterior)
+            if (paramType == GoType.UNKNOWN || argType == GoType.UNKNOWN) {
+                continue;
+            }
+            
+            // Verificar compatibilidade exata por enquanto (pode ser estendido para conversões implícitas)
+            if (!paramType.equals(argType)) {
                 return false;
             }
         }
         
         return true;
     }
-    
+
     /**
-     * Verifica compatibilidade entre tipos
+     * Verifica se uma chamada de função é compatível (versão com GoType)
      */
-    private boolean isTypeCompatible(String paramType, String argType) {
-        if (paramType.equals(argType)) {
-            return true;
+    public boolean isCallCompatibleWithTypes(List<GoType> argumentTypes) {
+        if (parameterTypes.size() != argumentTypes.size()) {
+            return false;
         }
-        
-        // Compatibilidade entre tipos inteiros
-        if (isIntegerType(paramType) && isIntegerType(argType)) {
-            return true;
+
+        for (int i = 0; i < parameterTypes.size(); i++) {
+            GoType paramType = parameterTypes.get(i);
+            GoType argType = argumentTypes.get(i);
+
+            if (!paramType.isCompatibleWith(argType)) {
+                return false;
+            }
         }
-        
-        // Compatibilidade entre tipos float
-        if (isFloatType(paramType) && isFloatType(argType)) {
-            return true;
-        }
-        
-        return false;
+
+        return true;
     }
-    
-    private boolean isIntegerType(String type) {
-        return type.equals("int") || type.equals("int8") || type.equals("int16") || 
-               type.equals("int32") || type.equals("int64") || type.equals("uint") ||
-               type.equals("uint8") || type.equals("uint16") || type.equals("uint32") ||
-               type.equals("uint64");
-    }
-    
-    private boolean isFloatType(String type) {
-        return type.equals("float32") || type.equals("float64");
-    }
-    
+
     /**
      * Cria assinatura da função
      */
     public String getSignature() {
         StringBuilder sig = new StringBuilder();
         sig.append(name).append("(");
-        
+
         for (int i = 0; i < parameterTypes.size(); i++) {
-            if (i > 0) sig.append(", ");
-            sig.append(parameterNames.get(i)).append(" ").append(parameterTypes.get(i));
+            if (i > 0)
+                sig.append(", ");
+            sig.append(parameterNames.get(i)).append(" ").append(parameterTypes.get(i).toString());
         }
-        
+
         sig.append(")");
-        
-        if (returnType != null && !returnType.equals("void")) {
-            sig.append(" ").append(returnType);
+
+        if (returnType != null && returnType != GoType.VOID) {
+            sig.append(" ").append(returnType.toString());
         }
-        
+
         return sig.toString();
     }
-    
+
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

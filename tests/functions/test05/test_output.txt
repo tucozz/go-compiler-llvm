@@ -1,0 +1,6 @@
+Expected output: Multiple SEMANTIC ERRORs
+- function 'add' expects 2 arguments, but 1 provided
+- function 'add' expects 2 arguments, but 3 provided  
+- function 'noParams' expects 0 arguments, but 1 provided
+- function 'missingFunction' not declared
+Test: Wrong number of arguments and undeclared function calls

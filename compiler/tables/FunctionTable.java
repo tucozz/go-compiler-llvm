@@ -1,5 +1,6 @@
 package compiler.tables;
 
+import compiler.typing.GoType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
@@ -69,7 +70,7 @@ public class FunctionTable {
     /**
      * Verifica se uma chamada de função é válida
      */
-    public boolean isValidCall(String functionName, List<String> argumentTypes) {
+    public boolean isValidCall(String functionName, List<GoType> argumentTypes) {
         FunctionInfo func = functions.get(functionName);
         if (func == null) {
             return false;
@@ -81,8 +82,8 @@ public class FunctionTable {
     /**
      * Marca uma função como definida
      */
-    public boolean markAsDefined(String name) {
-        FunctionInfo func = functions.get(name);
+    public boolean markAsDefined(String functionName) {
+        FunctionInfo func = functions.get(functionName);
         if (func != null) {
             func.setDefined(true);
             return true;
@@ -139,21 +140,14 @@ public class FunctionTable {
         System.out.println("\n=== FUNCTION TABLE ===");
         if (functions.isEmpty()) {
             System.out.println("No functions declared.");
-            return;
+        } else {
+            System.out.println("Total functions: " + functions.size());
+            for (FunctionInfo func : functions.values()) {
+                String status = func.isDefined() ? "Defined" : "Declared";
+                System.out.println("  Function: " + func.getName() + " | Signature: " + func.getSignature() + 
+                                 " | Line: " + func.getDeclarationLine() + " | Status: " + status);
+            }
         }
-        
-        System.out.println("Total functions: " + functions.size());
-        
-        int defined = 0;
-        int builtIn = 0;
-        
-        for (FunctionInfo func : functions.values()) {
-            if (func.isDefined()) defined++;
-            if (func.getDeclarationLine() == 0) builtIn++;
-            System.out.println("  " + func);
-        }
-        
-        // System.out.println("Statistics: Defined=" + defined + ", Built-in=" + builtIn + ", Declared only=" + (functions.size() - defined));
         System.out.println("======================");
     }
 }

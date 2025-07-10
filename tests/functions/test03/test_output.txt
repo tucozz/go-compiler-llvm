@@ -1,0 +1,2 @@
+Expected output: No semantic errors
+Test: Function calls with variables and expressions as arguments

@@ -5,6 +5,8 @@ import Go_Parser.Go_Parser;
 import compiler.tables.SymbolTable;
 import compiler.tables.StringTable;
 import compiler.tables.SymbolTableEntry;
+import compiler.typing.GoType;
+import compiler.typing.TypeTable;
 import compiler.tables.FunctionTable;
 import compiler.tables.FunctionInfo;
 import java.util.List;
@@ -18,12 +20,14 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     private SymbolTable symbolTable;
     private StringTable stringTable;
     private FunctionTable functionTable;
+    private TypeTable typeTable;
     private boolean foundSemanticErrors;
 
     public GoSemanticAnalyzer() {
         this.symbolTable = new SymbolTable();
         this.stringTable = new StringTable();
         this.functionTable = new FunctionTable();
+        this.typeTable = new TypeTable();
         this.foundSemanticErrors = false;
     }
 
@@ -41,6 +45,10 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
 
     public FunctionTable getFunctionTable() {
         return functionTable;
+    }
+
+    public TypeTable getTypeTable() {
+        return typeTable;
     }
 
     private void reportSemanticError(int lineNumber, String message) {
@@ -73,29 +81,38 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     @Override
     public Void visitVarSingleSpec(Go_Parser.VarSingleSpecContext ctx) {
         String varName = ctx.ID().getText();
-        String varType = ctx.typeSpec().getText();
+        String varTypeStr = ctx.typeSpec().getText();
+        GoType varType = GoType.fromString(varTypeStr);
         int lineNumber = ctx.ID().getSymbol().getLine();
 
-        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+        if (!symbolTable.addEntry(varName, varTypeStr, lineNumber)) {
             SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
             reportSemanticError(lineNumber,
                     "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+        } else {
+            // Adicionar à tabela de tipos
+            typeTable.addVariable(varName, varType);
         }
         return super.visitVarSingleSpec(ctx);
     }
 
     @Override
     public Void visitVarMultiSpec(Go_Parser.VarMultiSpecContext ctx) {
-        String varType = ctx.typeSpec().getText();
+        String varTypeStr = ctx.typeSpec().getText();
+        GoType varType = GoType.fromString(varTypeStr);
+
         for (int i = 0; i < ctx.ID().size(); i++) {
             String varName = ctx.ID(i).getText();
             int lineNumber = ctx.ID(i).getSymbol().getLine();
 
-            if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+            if (!symbolTable.addEntry(varName, varTypeStr, lineNumber)) {
                 SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
                 reportSemanticError(lineNumber,
                         "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine()
                                 + ".");
+            } else {
+                // Adicionar à tabela de tipos
+                typeTable.addVariable(varName, varType);  // <-- NOVA LINHA
             }
         }
         return super.visitVarMultiSpec(ctx);
@@ -110,29 +127,38 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     @Override
     public Void visitConstSingleSpec(Go_Parser.ConstSingleSpecContext ctx) {
         String constName = ctx.ID().getText();
-        String constType = ctx.typeSpec().getText();
+        String constTypeStr = ctx.typeSpec().getText();
+        GoType constType = GoType.fromString(constTypeStr);
         int lineNumber = ctx.ID().getSymbol().getLine();
 
-        if (!symbolTable.addEntry(constName, constType, lineNumber)) {
+        if (!symbolTable.addEntry(constName, constTypeStr, lineNumber)) {
             reportSemanticError(lineNumber,
                     "constant '" + constName + "' already declared at line "
                             + symbolTable.getEntry(constName).getDeclarationLine() + ".");
+        } else {
+            // Adicionar à tabela de tipos
+            typeTable.addVariable(constName, constType);
         }
         return super.visitConstSingleSpec(ctx);
     }
 
     @Override
     public Void visitConstMultiSpec(Go_Parser.ConstMultiSpecContext ctx) {
-        String constType = ctx.typeSpec().getText();
+        String constTypeStr = ctx.typeSpec().getText();
+        GoType constType = GoType.fromString(constTypeStr);
+
         for (int i = 0; i < ctx.ID().size(); i++) {
             String constName = ctx.ID(i).getText();
             int lineNumber = ctx.ID(i).getSymbol().getLine();
 
-            if (!symbolTable.addEntry(constName, constType, lineNumber)) {
+            if (!symbolTable.addEntry(constName, constTypeStr, lineNumber)) {
                 SymbolTableEntry existingEntry = symbolTable.getEntry(constName);
                 reportSemanticError(lineNumber,
                         "constant '" + constName + "' already declared at line " + existingEntry.getDeclarationLine()
                                 + ".");
+            } else {
+                // Adicionar à tabela de tipos
+                typeTable.addVariable(constName, constType);  // <-- NOVA LINHA
             }
         }
         return super.visitConstMultiSpec(ctx);
@@ -142,17 +168,24 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
     public Void visitShortDecl(Go_Parser.ShortDeclContext ctx) {
         // Declaração curta: lvalue S_ASSIGN expr
         String varName = ctx.lvalue().getText();
-        String varType = "short"; // Tipo genérico para declaração curta
         int lineNumber = ctx.lvalue().getStart().getLine();
 
-        if (!symbolTable.addEntry(varName, varType, lineNumber)) {
+        // Visitar expressão primeiro para determinar o tipo
+        visit(ctx.expr());
+
+        // Tentar inferir o tipo da expressão
+        GoType inferredType = determineExpressionGoType(ctx.expr());
+        String varTypeStr = inferredType.getTypeName();
+
+        if (!symbolTable.addEntry(varName, varTypeStr, lineNumber)) {
             SymbolTableEntry existingEntry = symbolTable.getEntry(varName);
             reportSemanticError(lineNumber,
                     "variable '" + varName + "' already declared at line " + existingEntry.getDeclarationLine() + ".");
+        } else {
+            // Adicionar à tabela de tipos
+            typeTable.addVariable(varName, inferredType);
         }
 
-        // Visitar expressão de inicialização
-        visit(ctx.expr());
         return null;
     }
 
@@ -224,18 +257,18 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
         }
 
         // Coletar tipos de argumentos
-        List<String> argTypes = new ArrayList<>();
+        List<GoType> argTypes = new ArrayList<>();
         if (ctx.expressionList() != null) {
             Go_Parser.ExprListContext exprListCtx = (Go_Parser.ExprListContext) ctx.expressionList();
             for (Go_Parser.ExprContext exprCtx : exprListCtx.expr()) {
-                String argType = determineExpressionType(exprCtx);
+                GoType argType = determineExpressionGoType(exprCtx);
                 argTypes.add(argType);
             }
         }
 
         // Verificar compatibilidade da chamada
-        if (!functionTable.isValidCall(funcName, argTypes)) {
-            FunctionInfo func = functionTable.getFunction(funcName);
+        FunctionInfo func = functionTable.getFunction(funcName);
+        if (!func.isCallCompatible(argTypes)) {
             reportSemanticError(lineNumber,
                     "function call '" + funcName + "' has incompatible arguments. Expected: " + func.getSignature());
         }
@@ -378,5 +411,30 @@ public class GoSemanticAnalyzer extends Go_ParserBaseVisitor<Void> {
             reportSemanticError(lineNumber, "variable '" + varName + "' was not declared.");
         }
         return super.visitArrayIndex(ctx);
+    }
+
+    /**
+     * Determina o tipo GoType de uma expressão
+     */
+    private GoType determineExpressionGoType(Go_Parser.ExprContext ctx) {
+        if (ctx instanceof Go_Parser.PrimaryOrPostfixExprContext) {
+            Go_Parser.PrimaryOrPostfixExprContext primary = (Go_Parser.PrimaryOrPostfixExprContext) ctx;
+            if (primary.primaryExpr() instanceof Go_Parser.IntLiteralContext) {
+                return GoType.INT;
+            } else if (primary.primaryExpr() instanceof Go_Parser.StringLiteralContext) {
+                return GoType.STRING;
+            } else if (primary.primaryExpr() instanceof Go_Parser.TrueLiteralContext ||
+                    primary.primaryExpr() instanceof Go_Parser.FalseLiteralContext) {
+                return GoType.BOOL;
+            } else if (primary.primaryExpr() instanceof Go_Parser.RealLiteralContext) {
+                return GoType.FLOAT64;
+            } else if (primary.primaryExpr() instanceof Go_Parser.IdExprContext) {
+                // Buscar tipo da variável na tabela de tipos
+                String varName = ((Go_Parser.IdExprContext) primary.primaryExpr()).ID().getText();
+                GoType varType = typeTable.getVariableType(varName);
+                return varType != null ? varType : GoType.UNKNOWN;
+            }
+        }
+        return GoType.UNKNOWN;
     }
 }
