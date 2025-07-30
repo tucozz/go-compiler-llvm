@@ -1,24 +1,103 @@
 lexer grammar Go_Lexer;
 
+// Whitespace
 WS : [ \t\n\r]+ -> skip ;
 
-IF       : 'if' ;
-ELSEIF   : 'else if' ;
-ELSE     : 'else' ;
-SWITCH   : 'switch' ;
-CASE     : 'case' ;
-DEFAULT  : 'default' ;
-FOR      : 'for' ;
-CONTINUE : 'continue' ;
+// Letras e Dígitos
+UNICODE_LETTER : \p{L} ;
+UNICODE_DIGIT  : \p{Nd} ;
+LETTER         : UNICODE_LETTER | '_' ;
+DECIMAL_DIGIT  : [0-9] ;
+BINARY_DIGIT   : [0-1] ;
+OCTAL_DIGIT    : [0-7] ;
+HEX_DIGIT      : [0-9a-fA-F] ;
+
+// Identifier
+ID : LETTER (LETTER | UNICODE_DIGIT)* ;
+
+// Keywords
 BREAK    : 'break' ;
+CASE     : 'case' ;
+CHAN    : 'chan' ;
+CONST   : 'const' ;
+CONTINUE : 'continue' ;
+DEFAULT  : 'default' ;
+DEFER   : 'defer' ;
+ELSE     : 'else' ;
 FALLT    : 'fallthrough' ;
+FOR      : 'for' ;
+FUNC    : 'func' ;
+GO      : 'go' ;
+GOTO    : 'goto' ;
+IMPORT  : 'import' ;
+IF       : 'if' ;
+INTERFACE : 'interface' ;
+MAP     : 'map' ;
+PACKAGE : 'package' ;
 RANGE    : 'range' ;
 RETURN   : 'return' ;
-
-FUNC    : 'func' ;
-VAR     : 'var' ;
-CONST   : 'const' ;
+SELECT  : 'select' ;
+STRUCT  : 'struct' ;
+SWITCH   : 'switch' ;
 TYPE    : 'type' ;
+VAR     : 'var' ;
+
+// Operadores e Pontuação
+PLUS     : '+' ;
+MINUS    : '-' ;
+TIMES    : '*' ;
+OVER     : '/' ;
+MOD      : '%' ;
+ASSIGN_PLUS : '+=' ;
+ASSIGN_MINUS : '-=' ;
+ASSIGN_TIMES : '*=' ;
+ASSIGN_OVER  : '/=' ;
+ASSIGN_MOD   : '%=' ;
+AND      : '&&' ;
+OR       : '||' ;
+INC      : '++' ;
+DEC      : '--' ;
+EQUALS   : '==' ;
+LTHAN    : '<' ;
+GTHAN    : '>' ;
+ASSIGN   : '=' ;
+NOT      : '!' ;
+NOTEQUAL : '!=' ;
+LETHAN   : '<=' ;
+GETHAN   : '>=' ;
+S_ASSIGN : ':=' ;
+PAR_INT  : '(' ;
+PAR_END  : ')' ;
+S_BRA_INT: '[' ;
+S_BRA_END : ']' ;
+C_BRA_INT : '{' ;
+C_BRA_END : '}' ;
+SEMICOLON : ';' ;
+COLON     : ':' ;
+COMMA     : ',' ;
+DOT       : '.' ;
+KW_TRUE  : 'true' ;
+KW_FALSE : 'false' ;
+
+// Literais inteiros
+INT_LIT : DECIMAL_LIT | BINARY_LIT | OCTAL_LIT | HEX_LIT ;
+DECIMAL_LIT : '0' | [1-9] ('_'? DECIMAL_DIGIT)* ;
+BINARY_LIT  : '0' [bB] '_'? BINARY_DIGIT ('_'? BINARY_DIGIT)* ;
+OCTAL_LIT   : '0' [oO]? '_'? OCTAL_DIGIT ('_'? OCTAL_DIGIT)* ;
+HEX_LIT     : '0' [xX] '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ;
+
+// Literais de ponto flutuante
+FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT ;
+DECIMAL_FLOAT_LIT : DECIMAL_DIGITS '.' DECIMAL_DIGITS? DECIMAL_EXPONENT?
+                 | DECIMAL_DIGITS DECIMAL_EXPONENT
+                 | '.' DECIMAL_DIGITS DECIMAL_EXPONENT? ;
+HEX_FLOAT_LIT : '0' [xX] HEX_MANTISSA HEX_EXPONENT ;
+DECIMAL_DIGITS : DECIMAL_DIGIT ('_'? DECIMAL_DIGIT)* ;
+DECIMAL_EXPONENT : [eE] [+-]? DECIMAL_DIGITS ;
+HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_DIGIT)*)?)?
+            | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
+HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
+
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
@@ -34,49 +113,9 @@ STRING  : 'string' ;
 FLOAT32 : 'float32' ;
 FLOAT64 : 'float64' ;
 
-ASSIGN   : '=' ;
-S_ASSIGN : ':=' ;
-EQUALS   : '==' ;
-NOTEQUAL : '!=' ;
-GTHAN    : '>' ;
-LTHAN    : '<' ;
-GETHAN   : '>=' ;
-LETHAN   : '<=' ;
-AND      : '&&' ;
-OR       : '||' ;
-NOT      : '!' ;
-KW_TRUE  : 'true' ;
-KW_FALSE : 'false' ;
-
-PLUS      : '+' ;
-MINUS     : '-' ;
-TIMES     : '*' ;
-OVER      : '/' ;
-MOD       : '%' ;
-INC       : '++' ;
-DEC       : '--' ;
-PAR_INT   : '(' ;
-PAR_END   : ')' ;
-S_BRA_INT : '[' ; 
-S_BRA_END : ']' ;
-C_BRA_INT : '{' ;
-C_BRA_END : '}' ;
-SEMICOLON : ';' ;
-COLON     : ':' ;
-COMMA     : ',' ;
-
-POS_INT : DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS ; 
-NEG_INT : '-' (DIGITS | '0x' HEXDIGITS | '0X' HEXDIGITS | '0b' BINDIGITS | '0B' BINDIGITS | '0o' OCTDIGITS | '0' OCTDIGITS) ; 
-POS_REAL : DIGITS '.' DIGITS (('e' | 'E') ('+' | '-')? DIGITS)? ; 
-NEG_REAL : '-' DIGITS '.' DIGITS (('e' | 'E') ('+' | '-')? DIGITS)? ;
-
-ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
-COMMENT_A     : '//' ~[\n]* ;
+COMMENT_A     : '//' ~[\r\n]*;
 COMMENT_B     : '/*' ~[*/]* '*/';
-DIGITS : [0-9]+ ; 
-HEXDIGITS : [0-9a-fA-F]+ ; 
-BINDIGITS : [0-1]+ ; 
-OCTDIGITS : [0-7]+ ;
+ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
 
 STRINGF : '"' ( ESCAPE | ~["\\\r\n])* '"' ;
 ESCAPE    : '\\' (["\\ntbrf] | 'u' HEX4 | 'U' HEX8) ;
