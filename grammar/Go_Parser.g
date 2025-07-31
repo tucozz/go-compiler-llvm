@@ -44,17 +44,17 @@ functionDeclaration:
     FUNC ID signature block                                                 #FunctionDecl
 ;
 
-parameterList: 
-    parameter (COMMA parameter)*                                            #ParamList
+
+// === FUNCTION SIGNATURES ===
+signature:
+    parameters result?                                                      #FunctionSignature
 ;
 
 parameter: 
     ID typeSpec                                                             #ParameterDeclaration
 ;
-
-// === FUNCTION SIGNATURES ===
-signature:
-    parameters result?                                                      #FunctionSignature
+parameterList: 
+    parameter (COMMA parameter)*                                            #ParamList
 ;
 
 parameters:
@@ -70,6 +70,7 @@ result:
 functionType:
     FUNC signature                                                          #FunctionTypeDefinition
 ;
+
 typeSpec:
     INT                                                                     #TypeInt
     | INT8                                                                  #TypeInt8
@@ -98,6 +99,8 @@ statement:
     | ifStmt                                                                #IfStatement
     | forStmt                                                               #ForStatement
     | returnStmt                                                            #ReturnStatement
+    | breakStmt                                                             #BreakStatement
+    | continueStmt                                                          #ContinueStatement
     | block                                                                 #BlockStatement
 ;
 
@@ -145,6 +148,14 @@ returnStmt:
     RETURN expr? statementEnd                                               #ReturnStatementWithExpr
 ;
 
+breakStmt:
+    BREAK statementEnd                                                      #BreakStatementRule
+;
+
+continueStmt:
+    CONTINUE statementEnd                                                   #ContinueStatementRule
+;
+
 block:
     C_BRA_INT (statement)* C_BRA_END                                        #BlockCode
 ;
@@ -169,6 +180,7 @@ primaryExpr:
     | PAR_INT expr PAR_END                                                  #ParenthesizedExpr
     | functionCall                                                          #FuncCallExpr
     | arrayAccess                                                           #ArrayAccessExpr
+    | compositeLiteral                                                      #CompositeLiteralExpr
 ;
 
 lvalue:
@@ -193,5 +205,12 @@ relation_op:
     | LETHAN                                                                #LessThanEqualsOperator
 ;
 
+compositeLiteral:
+    S_BRA_INT S_BRA_END typeSpec C_BRA_INT (elementList)? C_BRA_END         #ArraySliceLiteral
+;
+
+elementList:
+    expr (COMMA expr)* COMMA?                                               #ElementListRule
+;
 
 statementEnd: SEMICOLON?;
