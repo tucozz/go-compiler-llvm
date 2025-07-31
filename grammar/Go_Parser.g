@@ -68,6 +68,8 @@ typeSpec:
     | STRING                                                                #TypeString
     | FLOAT32                                                               #TypeFloat32
     | FLOAT64                                                               #TypeFloat64
+    | BYTE                                                                  #TypeByte
+    | RUNE                                                                  #TypeRune
     | ID                                                                    #CustomType
     | S_BRA_INT S_BRA_END typeSpec                                          #ArrayType
 ;
@@ -135,7 +137,7 @@ primaryExpr:
     | NEG_INT                                                               #NegIntLiteral
     | POS_REAL                                                              #RealLiteral
     | NEG_REAL                                                              #NegRealLiteral
-    | STRINGF                                                               #StringLiteral
+    | STRING_LIT                                                            #StringLiteral
     | KW_TRUE                                                               #TrueLiteral
     | KW_FALSE                                                              #FalseLiteral
     | PAR_INT expr PAR_END                                                  #ParenthesizedExpr

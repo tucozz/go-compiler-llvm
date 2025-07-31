@@ -3,17 +3,16 @@ lexer grammar Go_Lexer;
 // Whitespace
 WS : [ \t\n\r]+ -> skip ;
 
-// Letras e Dígitos
-UNICODE_LETTER : \p{L} ;
-UNICODE_DIGIT  : \p{Nd} ;
-LETTER         : UNICODE_LETTER | '_' ;
-DECIMAL_DIGIT  : [0-9] ;
-BINARY_DIGIT   : [0-1] ;
-OCTAL_DIGIT    : [0-7] ;
-HEX_DIGIT      : [0-9a-fA-F] ;
+// Comments
+COMMENT_A     : '//' ~[\r\n]*;
+COMMENT_B     : '/*' ~[*/]* '*/';
 
-// Identifier
-ID : LETTER (LETTER | UNICODE_DIGIT)* ;
+// Letras e Dígitos (fragmentos - não geram tokens)
+fragment LETTER         : [a-zA-Z_] ;
+fragment DECIMAL_DIGIT  : [0-9] ;
+fragment BINARY_DIGIT   : [0-1] ;
+fragment OCTAL_DIGIT    : [0-7] ;
+fragment HEX_DIGIT      : [0-9a-fA-F] ;
 
 // Keywords
 BREAK    : 'break' ;
@@ -98,6 +97,7 @@ HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_D
             | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
 HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
 
+// Tipos primitivos do Go
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
@@ -112,13 +112,17 @@ BOOL    : 'bool' ;
 STRING  : 'string' ;
 FLOAT32 : 'float32' ;
 FLOAT64 : 'float64' ;
+BYTE    : 'byte' ;       // alias para uint8
+RUNE    : 'rune' ;       // alias para int32
 
-COMMENT_A     : '//' ~[\r\n]*;
-COMMENT_B     : '/*' ~[*/]* '*/';
-ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
+// Identifier
+ID : LETTER [a-zA-Z0-9_]* ;
 
-STRINGF : '"' ( ESCAPE | ~["\\\r\n])* '"' ;
-ESCAPE    : '\\' (["\\ntbrf] | 'u' HEX4 | 'U' HEX8) ;
-HEXDIGIT  : [0-9a-fA-F] ;
-HEX4      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
-HEX8      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
+// String literals
+STRING_LIT : INTERPRETED_STRING_LIT | RAW_STRING_LIT ;
+// String interpretada (com escape sequences básicas)
+INTERPRETED_STRING_LIT : '"' ( ~["\\\r\n] | ESCAPE_SEQUENCE )* '"' ;
+// String crua (sem escape sequences)
+RAW_STRING_LIT : '`' ~[`]* '`' ;
+// Escape sequences básicas do Go (versão minimalista)
+ESCAPE_SEQUENCE : '\\' ( [abfnrtv\\"'0] | 'x' HEX_DIGIT HEX_DIGIT ) ;
