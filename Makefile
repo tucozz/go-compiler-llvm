@@ -5,8 +5,6 @@ JAVA = java
 # Caminho para o JAR do ANTLR (relativo à raiz do projeto)
 ANTLR_JAR = tools/antlr-4.13.2-complete.jar
 
-# ... (Seções de comandos Java e ANTLR_JAR permanecem as mesmas)
-
 # Nome da gramática principal para o pacote Java.
 GRAMMAR_PACKAGE_NAME = Go_Parser
 
@@ -16,16 +14,19 @@ GRAMMAR_BASE_DIR = grammar
 # Caminho completo para o diretório de saída das classes Java geradas pelo ANTLR
 OUTPUT_JAVA_DIR = $(GRAMMAR_BASE_DIR)/$(GRAMMAR_PACKAGE_NAME)
 
-# Diretório onde você colocou seu código Java manual (SymbolTable, GoSemanticAnalyzer, Main, etc.)
-COMPILER_SRC_DIR = compiler
+# NOVO: Diretório raiz do seu código Java manual.
+# Baseado no seu 'tree' output, é a pasta 'compiler' na raiz do projeto.
+COMPILER_SRC_BASE_DIR = compiler
 
 # Diretório para onde as classes .class serão compiladas
 COMPILER_BIN_DIR = bin
 
 # Classpath completo para javac e java
 # Inclui: diretório atual, ANTLR JAR, diretório base das gramáticas (para encontrar 'Go_Parser' pacote),
-# e o diretório de saída das classes compiladas (.class)
-CLASSPATH = .:$(ANTLR_JAR):$(GRAMMAR_BASE_DIR):$(OUTPUT_JAVA_DIR):$(COMPILER_BIN_DIR)
+# o diretório de saída das classes compiladas do ANTLR, e a raiz dos seus pacotes manuais (compiler/)
+# e o diretório de saída dos binários compilados (bin)
+CLASSPATH = .:$(ANTLR_JAR):$(GRAMMAR_BASE_DIR):$(OUTPUT_JAVA_DIR):$(COMPILER_BIN_DIR):$(COMPILER_SRC_BASE_DIR)
+
 # Comando ANTLR4 (definido para ser executado DA RAIZ do projeto)
 ANTLR4 = $(JAVA) -jar $(ANTLR_JAR)
 
@@ -37,7 +38,7 @@ PARSER_GRAMMAR_NAME = Go_Parser.g
 all: antlr javac compiler_javac
 	@echo "Compilação concluída."
 
-# ... (Regras 'antlr', 'antlr-lexer', 'antlr-parser' permanecem as mesmas que te passei na última resposta)
+# Regras 'antlr', 'antlr-lexer', 'antlr-parser' (permanecem as mesmas)
 antlr: antlr-lexer antlr-parser
 
 antlr-lexer:
@@ -55,10 +56,14 @@ javac:
 # NOVO: Regra para compilar o seu código Java manual (tabelas, visitor, Main)
 compiler_javac: javac
 	@mkdir -p $(COMPILER_BIN_DIR)
-	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) $(COMPILER_SRC_DIR)/*.java $(COMPILER_SRC_DIR)/tables/*.java
+	# Compila todos os arquivos Java a partir da raiz de 'compiler/'
+	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) \
+		$(COMPILER_SRC_BASE_DIR)/ast/*.java \
+		$(COMPILER_SRC_BASE_DIR)/compiler/*.java \
+		$(COMPILER_SRC_BASE_DIR)/compiler/tables/*.java \
+		$(COMPILER_SRC_BASE_DIR)/compiler/typing/*.java
 
 # Executa o compilador (Main.java)
-# Exemplo de uso: make run_compiler FILE=inputs/exemplo.go
 run_compiler: all # Depende de 'all' para garantir que tudo esteja compilado
 	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
 
@@ -67,6 +72,6 @@ clean:
 	@rm -rf $(OUTPUT_JAVA_DIR)
 	@rm -f $(GRAMMAR_BASE_DIR)/*.tokens
 	@rm -f $(GRAMMAR_BASE_DIR)/*.interp
-	@rm -rf $(COMPILER_BIN_DIR) # Adicionado para limpar os binários do seu compilador
+	@rm -rf $(COMPILER_BIN_DIR)
 
 .PHONY: all antlr antlr-lexer antlr-parser javac compiler_javac run_compiler clean

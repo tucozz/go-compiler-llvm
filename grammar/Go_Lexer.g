@@ -10,11 +10,10 @@ LETTER         : UNICODE_LETTER | '_' ;
 DECIMAL_DIGIT  : [0-9] ;
 BINARY_DIGIT   : [0-1] ;
 OCTAL_DIGIT    : [0-7] ;
-HEX_DIGIT      : [0-9a-fA-F] ;
+HEX_DIGIT      : [0-9a-fA-F] ; // Consolidated and used consistently
 
 // Identifier
 ID : LETTER (LETTER | UNICODE_DIGIT)* ;
-
 // Keywords
 BREAK    : 'break' ;
 CASE     : 'case' ;
@@ -91,13 +90,13 @@ FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT ;
 DECIMAL_FLOAT_LIT : DECIMAL_DIGITS '.' DECIMAL_DIGITS? DECIMAL_EXPONENT?
                  | DECIMAL_DIGITS DECIMAL_EXPONENT
                  | '.' DECIMAL_DIGITS DECIMAL_EXPONENT? ;
-HEX_FLOAT_LIT : '0' [xX] HEX_MANTISSA HEX_EXPONENT ;
 DECIMAL_DIGITS : DECIMAL_DIGIT ('_'? DECIMAL_DIGIT)* ;
 DECIMAL_EXPONENT : [eE] [+-]? DECIMAL_DIGITS ;
 HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_DIGIT)*)?)?
             | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
 HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
 
+// Built-in types (these are keywords)
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
@@ -113,12 +112,9 @@ STRING  : 'string' ;
 FLOAT32 : 'float32' ;
 FLOAT64 : 'float64' ;
 
-COMMENT_A     : '//' ~[\r\n]*;
-COMMENT_B     : '/*' ~[*/]* '*/';
-ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
+// Comments
+COMMENT_A     : '//' ~[\r\n]* -> skip; // Add -> skip
+COMMENT_B     : '/*' .*? '*/' -> skip; // Use .*? (non-greedy any char) to match until next '*/'
 
-STRINGF : '"' ( ESCAPE | ~["\\\r\n])* '"' ;
-ESCAPE    : '\\' (["\\ntbrf] | 'u' HEX4 | 'U' HEX8) ;
-HEXDIGIT  : [0-9a-fA-F] ;
-HEX4      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
-HEX8      : HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT ;
+STRINGF : '"' ( ESCAPE_SEQUENCE | ~["\\] )*? '"' ; // Non-greedy match
+fragment ESCAPE_SEQUENCE : '\\' ( [abfnrtv\\'"] | HEX_DIGIT HEX_DIGIT | 'u' HEX_DIGIT HEX_DIGIT HEX_DIGIT HEX_DIGIT | 'U' (HEX_DIGIT){8} );
