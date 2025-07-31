@@ -36,16 +36,12 @@ varSpec:
     identifierList typeSpec (ASSIGN expressionList)?                       #VarSpecification
 ;
 
-shortDeclaration:
-    lvalue S_ASSIGN expr statementEnd                                       #ShortDecl
-;
-
 expressionList:
     expr (COMMA expr)*                                                      #ExprList
 ;
 
 functionDeclaration: 
-    FUNC ID PAR_INT (parameterList)? PAR_END (typeSpec)? C_BRA_INT (statement)* C_BRA_END  #FunctionDecl
+    FUNC ID signature block                                                 #FunctionDecl
 ;
 
 parameterList: 
@@ -56,6 +52,24 @@ parameter:
     ID typeSpec                                                             #ParameterDeclaration
 ;
 
+// === FUNCTION SIGNATURES ===
+signature:
+    parameters result?                                                      #FunctionSignature
+;
+
+parameters:
+    PAR_INT (parameterList)? PAR_END                                        #ParametersDeclaration
+;
+
+result:
+    typeSpec                                                                #ResultSingleType
+    | parameters                                                            #ResultParameters
+;
+
+// === FUNCTION TYPES ===
+functionType:
+    FUNC signature                                                          #FunctionTypeDefinition
+;
 typeSpec:
     INT                                                                     #TypeInt
     | INT8                                                                  #TypeInt8
@@ -85,31 +99,22 @@ statement:
     | forStmt                                                               #ForStatement
     | returnStmt                                                            #ReturnStatement
     | block                                                                 #BlockStatement
-    | exprStmt                                                              #ExpressionStatement
 ;
 
-// === SIMPLE STATEMENTS (podem aparecer em contexts específicos) ===
+// === SIMPLE STATEMENTS ===
 simpleStmt:
     assignment                                                              #AssignmentSimpleStmt
     | shortDeclaration                                                      #ShortDeclSimpleStmt
     | inc_dec_stmt                                                          #IncDecSimpleStmt
-    | expr                                                                  #ExpressionSimpleStmt
+    | expr statementEnd                                                     #ExpressionSimpleStmt
 ;
 
 shortDeclaration:
-    identifierList S_ASSIGN expressionList                                 #ShortDecl
+    identifierList S_ASSIGN expressionList                                 #ShortVariableDecl
 ;
 
 identifierList:
     ID (COMMA ID)*                                                          #IdentifierListRule
-;
-
-expressionList:
-    expr (COMMA expr)*                                                      #ExprList
-;
-
-exprStmt: 
-    expr statementEnd                                                       #ExpressionOnlyStatement
 ;
 
 assignment:
@@ -121,15 +126,15 @@ inc_dec_stmt:
 ;
 
 ifStmt:
-    IF expr C_BRA_INT (statement)* C_BRA_END (ELSEIF expr C_BRA_INT (statement)* C_BRA_END)* (ELSE C_BRA_INT (statement)* C_BRA_END)?  #IfElseStatement
+    IF expr block (ELSE (ifStmt | block))?                                  #IfElseStatement
 ;
 
 forStmt:
-    FOR (forClause | forRangeClause | expr)? C_BRA_INT (statement)* C_BRA_END  #ForLoopStatement
+    FOR (forClause | forRangeClause | expr)? block                          #ForLoopStatement
 ;
 
 forClause:
-    exprStmt? SEMICOLON expr? SEMICOLON exprStmt?                           #ForClassicClause
+    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt?                       #ForClassicClause
 ;
 
 forRangeClause:
@@ -188,31 +193,5 @@ relation_op:
     | LETHAN                                                                #LessThanEqualsOperator
 ;
 
-// Tipos de Função  ===
-functionType:
-    FUNC signature                                                          #FunctionTypeDefinition
-;
-
-signature:
-    parameters result?                                                      #FunctionSignature
-;
-
-parameters:
-    PAR_INT (parameterDeclarationList (COMMA)?)? PAR_END                    #ParametersDeclaration
-;
-
-result:
-    parameters                                                              #ResultParameters
-    | typeSpec                                                              #ResultSingleType
-;
-
-parameterDeclarationList:
-    parameterDeclaration (COMMA parameterDeclaration)*                      #ParameterDeclList
-;
-
-parameterDeclaration:
-    ID typeSpec                                                             #NamedParameter
-    | typeSpec                                                              #UnnamedParameter
-;
 
 statementEnd: SEMICOLON?;
