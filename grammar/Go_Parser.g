@@ -4,33 +4,36 @@ options {
   tokenVocab = Go_Lexer;
 }
 
+// === PROGRAM STRUCTURE ===
 program: 
-    (statement)* EOF                                                        #ProgramRule
+    (declaration | functionDeclaration)* EOF                               #ProgramRule
 ;
 
+// === DECLARATIONS ===
 declaration:
-    varDeclaration 
-    | constDeclaration
-    | functionDeclaration 
-    | shortDeclaration
-;
-
-varDeclaration:
-    VAR varSpec statementEnd                                                #VarDecl
+    constDeclaration                                                        #ConstDeclarationStmt
+    | typeDeclaration                                                       #TypeDeclarationStmt  
+    | varDeclaration                                                        #VarDeclarationStmt
 ;
 
 constDeclaration:
-    CONST constSpec statementEnd                                            #ConstDecl
-;
-
-varSpec:
-    ID typeSpec (ASSIGN expr)?                                              #VarSingleSpec
-    | ID (COMMA ID)* typeSpec ASSIGN expressionList                         #VarMultiSpec
+    CONST (constSpec | PAR_INT (constSpec statementEnd)* PAR_END) statementEnd   #ConstDecl
 ;
 
 constSpec:
-    ID typeSpec (ASSIGN expr)?                                              #ConstSingleSpec
-    | ID (COMMA ID)* typeSpec ASSIGN expressionList                         #ConstMultiSpec
+    identifierList (typeSpec)? ASSIGN expressionList                       #ConstSpecification
+;
+
+typeDeclaration:
+    TYPE (typeSpec | PAR_INT (typeSpec statementEnd)* PAR_END) statementEnd      #TypeDecl
+;
+
+varDeclaration:
+    VAR (varSpec | PAR_INT (varSpec statementEnd)* PAR_END) statementEnd         #VarDecl
+;
+
+varSpec:
+    identifierList typeSpec (ASSIGN expressionList)?                       #VarSpecification
 ;
 
 shortDeclaration:
@@ -72,17 +75,37 @@ typeSpec:
     | RUNE                                                                  #TypeRune
     | ID                                                                    #CustomType
     | S_BRA_INT S_BRA_END typeSpec                                          #ArrayType
+    | functionType                                                          #FunctionTypeSpec
 ;
 
 statement:
     declaration                                                             #DeclarationStatement
-    | assignment                                                            #AssignmentStatement
-    | inc_dec_stmt                                                          #IncDecStatement
+    | simpleStmt                                                            #SimpleStatement
     | ifStmt                                                                #IfStatement
     | forStmt                                                               #ForStatement
     | returnStmt                                                            #ReturnStatement
     | block                                                                 #BlockStatement
     | exprStmt                                                              #ExpressionStatement
+;
+
+// === SIMPLE STATEMENTS (podem aparecer em contexts específicos) ===
+simpleStmt:
+    assignment                                                              #AssignmentSimpleStmt
+    | shortDeclaration                                                      #ShortDeclSimpleStmt
+    | inc_dec_stmt                                                          #IncDecSimpleStmt
+    | expr                                                                  #ExpressionSimpleStmt
+;
+
+shortDeclaration:
+    identifierList S_ASSIGN expressionList                                 #ShortDecl
+;
+
+identifierList:
+    ID (COMMA ID)*                                                          #IdentifierListRule
+;
+
+expressionList:
+    expr (COMMA expr)*                                                      #ExprList
 ;
 
 exprStmt: 
@@ -114,7 +137,7 @@ forRangeClause:
 ;
 
 returnStmt: 
-    'return' expr? statementEnd                                             #ReturnStatementWithExpr
+    RETURN expr? statementEnd                                               #ReturnStatementWithExpr
 ;
 
 block:
@@ -133,10 +156,8 @@ expr:
 
 primaryExpr:
     ID                                                                      #IdExpr
-    | POS_INT                                                               #IntLiteral
-    | NEG_INT                                                               #NegIntLiteral
-    | POS_REAL                                                              #RealLiteral
-    | NEG_REAL                                                              #NegRealLiteral
+    | INT_LIT                                                               #IntLiteral
+    | FLOAT_LIT                                                             #FloatLiteral
     | STRING_LIT                                                            #StringLiteral
     | KW_TRUE                                                               #TrueLiteral
     | KW_FALSE                                                              #FalseLiteral
@@ -165,6 +186,33 @@ relation_op:
     | LTHAN                                                                 #LessThanOperator
     | GETHAN                                                                #GreaterThanEqualsOperator
     | LETHAN                                                                #LessThanEqualsOperator
+;
+
+// Tipos de Função  ===
+functionType:
+    FUNC signature                                                          #FunctionTypeDefinition
+;
+
+signature:
+    parameters result?                                                      #FunctionSignature
+;
+
+parameters:
+    PAR_INT (parameterDeclarationList (COMMA)?)? PAR_END                    #ParametersDeclaration
+;
+
+result:
+    parameters                                                              #ResultParameters
+    | typeSpec                                                              #ResultSingleType
+;
+
+parameterDeclarationList:
+    parameterDeclaration (COMMA parameterDeclaration)*                      #ParameterDeclList
+;
+
+parameterDeclaration:
+    ID typeSpec                                                             #NamedParameter
+    | typeSpec                                                              #UnnamedParameter
 ;
 
 statementEnd: SEMICOLON?;

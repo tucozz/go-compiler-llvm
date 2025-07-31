@@ -4,8 +4,8 @@ lexer grammar Go_Lexer;
 WS : [ \t\n\r]+ -> skip ;
 
 // Comments
-COMMENT_A     : '//' ~[\r\n]*;
-COMMENT_B     : '/*' ~[*/]* '*/';
+COMMENT_A     : '//' ~[\r\n]* -> skip ;
+COMMENT_B     : '/*' ~[*/]* '*/' -> skip ;
 
 // Letras e Dígitos (fragmentos - não geram tokens)
 fragment LETTER         : [a-zA-Z_] ;
@@ -41,62 +41,6 @@ SWITCH   : 'switch' ;
 TYPE    : 'type' ;
 VAR     : 'var' ;
 
-// Operadores e Pontuação
-PLUS     : '+' ;
-MINUS    : '-' ;
-TIMES    : '*' ;
-OVER     : '/' ;
-MOD      : '%' ;
-ASSIGN_PLUS : '+=' ;
-ASSIGN_MINUS : '-=' ;
-ASSIGN_TIMES : '*=' ;
-ASSIGN_OVER  : '/=' ;
-ASSIGN_MOD   : '%=' ;
-AND      : '&&' ;
-OR       : '||' ;
-INC      : '++' ;
-DEC      : '--' ;
-EQUALS   : '==' ;
-LTHAN    : '<' ;
-GTHAN    : '>' ;
-ASSIGN   : '=' ;
-NOT      : '!' ;
-NOTEQUAL : '!=' ;
-LETHAN   : '<=' ;
-GETHAN   : '>=' ;
-S_ASSIGN : ':=' ;
-PAR_INT  : '(' ;
-PAR_END  : ')' ;
-S_BRA_INT: '[' ;
-S_BRA_END : ']' ;
-C_BRA_INT : '{' ;
-C_BRA_END : '}' ;
-SEMICOLON : ';' ;
-COLON     : ':' ;
-COMMA     : ',' ;
-DOT       : '.' ;
-KW_TRUE  : 'true' ;
-KW_FALSE : 'false' ;
-
-// Literais inteiros
-INT_LIT : DECIMAL_LIT | BINARY_LIT | OCTAL_LIT | HEX_LIT ;
-DECIMAL_LIT : '0' | [1-9] ('_'? DECIMAL_DIGIT)* ;
-BINARY_LIT  : '0' [bB] '_'? BINARY_DIGIT ('_'? BINARY_DIGIT)* ;
-OCTAL_LIT   : '0' [oO]? '_'? OCTAL_DIGIT ('_'? OCTAL_DIGIT)* ;
-HEX_LIT     : '0' [xX] '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ;
-
-// Literais de ponto flutuante
-FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT ;
-DECIMAL_FLOAT_LIT : DECIMAL_DIGITS '.' DECIMAL_DIGITS? DECIMAL_EXPONENT?
-                 | DECIMAL_DIGITS DECIMAL_EXPONENT
-                 | '.' DECIMAL_DIGITS DECIMAL_EXPONENT? ;
-HEX_FLOAT_LIT : '0' [xX] HEX_MANTISSA HEX_EXPONENT ;
-DECIMAL_DIGITS : DECIMAL_DIGIT ('_'? DECIMAL_DIGIT)* ;
-DECIMAL_EXPONENT : [eE] [+-]? DECIMAL_DIGITS ;
-HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_DIGIT)*)?)?
-            | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
-HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
-
 // Tipos primitivos do Go
 INT     : 'int' ;
 INT8    : 'int8' ;
@@ -112,17 +56,71 @@ BOOL    : 'bool' ;
 STRING  : 'string' ;
 FLOAT32 : 'float32' ;
 FLOAT64 : 'float64' ;
-BYTE    : 'byte' ;       // alias para uint8
-RUNE    : 'rune' ;       // alias para int32
+BYTE    : 'byte' ;
+RUNE    : 'rune' ;
+KW_TRUE  : 'true' ;
+KW_FALSE : 'false' ;
 
-// Identifier
+// Operadores e Pontuação
+ASSIGN_PLUS : '+=' ;
+ASSIGN_MINUS : '-=' ;
+ASSIGN_TIMES : '*=' ;
+ASSIGN_OVER  : '/=' ;
+ASSIGN_MOD   : '%=' ;
+S_ASSIGN : ':=' ;
+EQUALS   : '==' ;
+NOTEQUAL : '!=' ;
+LETHAN   : '<=' ;
+GETHAN   : '>=' ;
+AND      : '&&' ;
+OR       : '||' ;
+INC      : '++' ;
+DEC      : '--' ;
+PLUS     : '+' ;
+MINUS    : '-' ;
+TIMES    : '*' ;
+OVER     : '/' ;
+MOD      : '%' ;
+LTHAN    : '<' ;
+GTHAN    : '>' ;
+ASSIGN   : '=' ;
+NOT      : '!' ;
+PAR_INT  : '(' ;
+PAR_END  : ')' ;
+S_BRA_INT: '[' ;
+S_BRA_END : ']' ;
+C_BRA_INT : '{' ;
+C_BRA_END : '}' ;
+SEMICOLON : ';' ;
+COLON     : ':' ;
+COMMA     : ',' ;
+DOT       : '.' ;
+
+// Literais (DEVEM vir ANTES dos identificadores)
+FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT ;
+INT_LIT : DECIMAL_LIT | BINARY_LIT | OCTAL_LIT | HEX_LIT ;
+STRING_LIT : INTERPRETED_STRING_LIT | RAW_STRING_LIT ;
+
+// Identifier (DEVE vir DEPOIS de keywords, tipos e literais)
 ID : LETTER [a-zA-Z0-9_]* ;
 
-// String literals
-STRING_LIT : INTERPRETED_STRING_LIT | RAW_STRING_LIT ;
-// String interpretada (com escape sequences básicas)
-INTERPRETED_STRING_LIT : '"' ( ~["\\\r\n] | ESCAPE_SEQUENCE )* '"' ;
-// String crua (sem escape sequences)
-RAW_STRING_LIT : '`' ~[`]* '`' ;
-// Escape sequences básicas do Go (versão minimalista)
-ESCAPE_SEQUENCE : '\\' ( [abfnrtv\\"'0] | 'x' HEX_DIGIT HEX_DIGIT ) ;
+// Fragments para literais (NÃO geram tokens)
+fragment DECIMAL_LIT : '0' | [1-9] ('_'? DECIMAL_DIGIT)* ;
+fragment BINARY_LIT  : '0' [bB] '_'? BINARY_DIGIT ('_'? BINARY_DIGIT)* ;
+fragment OCTAL_LIT   : '0' [oO]? '_'? OCTAL_DIGIT ('_'? OCTAL_DIGIT)* ;
+fragment HEX_LIT     : '0' [xX] '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ;
+
+fragment DECIMAL_FLOAT_LIT : DECIMAL_DIGITS '.' DECIMAL_DIGITS? DECIMAL_EXPONENT?
+                          | DECIMAL_DIGITS DECIMAL_EXPONENT
+                          | '.' DECIMAL_DIGITS DECIMAL_EXPONENT? ;
+fragment HEX_FLOAT_LIT : '0' [xX] HEX_MANTISSA HEX_EXPONENT ;
+
+fragment DECIMAL_DIGITS : DECIMAL_DIGIT ('_'? DECIMAL_DIGIT)* ;
+fragment DECIMAL_EXPONENT : [eE] [+-]? DECIMAL_DIGITS ;
+fragment HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_DIGIT)*)?)?
+                     | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
+fragment HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
+
+fragment INTERPRETED_STRING_LIT : '"' ( ~["\\\r\n] | ESCAPE_SEQUENCE )* '"' ;
+fragment RAW_STRING_LIT : '`' ~[`]* '`' ;
+fragment ESCAPE_SEQUENCE : '\\' ( [abfnrtv\\"'0] | 'x' HEX_DIGIT HEX_DIGIT ) ;
