@@ -22,13 +22,18 @@ test_file() {
     echo -n "Testing $category/$file... "
     total_count=$((total_count + 1))
     
-    if make run-tree FILE="../valid_tests/$category/$file" > /dev/null 2>&1; then
+    # Captura tanto stdout quanto stderr
+    output=$(make run-tree FILE="../valid_tests/$category/$file" 2>&1)
+    exit_code=$?
+    
+    # Verifica se há erros de parsing (mensagens como "line X:Y ...")
+    if [ $exit_code -eq 0 ] && ! echo "$output" | grep -q "^line [0-9]*:[0-9]*"; then
         echo -e "${GREEN}PASS${NC}"
         success_count=$((success_count + 1))
     else
         echo -e "${RED}FAIL${NC}"
         echo "  Error details:"
-        make run-tree FILE="../valid_tests/$category/$file" 2>&1 | head -3 | sed 's/^/  /'
+        echo "$output" | head -3 | sed 's/^/  /'
     fi
 }
 
