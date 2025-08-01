@@ -121,7 +121,16 @@ identifierList:
 ;
 
 assignment:
-    lvalue ASSIGN expr statementEnd                                         #AssignOpStatement
+    lvalue ASSIGN expr statementEnd                                         #SimpleAssignStatement
+    | lvalue compound_assign_op expr statementEnd                           #CompoundAssignStatement
+;
+
+compound_assign_op:
+    ASSIGN_PLUS                                                             #PlusAssignOp
+    | ASSIGN_MINUS                                                          #MinusAssignOp
+    | ASSIGN_TIMES                                                          #TimesAssignOp
+    | ASSIGN_OVER                                                           #DivAssignOp
+    | ASSIGN_MOD                                                            #ModAssignOp
 ;
 
 inc_dec_stmt: 
@@ -167,6 +176,7 @@ expr:
     | expr relation_op expr                                                 #ComparisonExpr
     | expr AND expr                                                         #LogicalANDExpr
     | expr OR expr                                                          #LogicalORExpr
+    | expr S_BRA_INT expr S_BRA_END                                         #ArrayAccessExpr
     | primaryExpr (INC | DEC)?                                              #PrimaryOrPostfixExpr
 ;
 
@@ -179,8 +189,12 @@ primaryExpr:
     | KW_FALSE                                                              #FalseLiteral
     | PAR_INT expr PAR_END                                                  #ParenthesizedExpr
     | functionCall                                                          #FuncCallExpr
-    | arrayAccess                                                           #ArrayAccessExpr
     | compositeLiteral                                                      #CompositeLiteralExpr
+    | typeCast                                                              #TypeCastExpr
+;
+
+typeCast:
+    typeSpec PAR_INT expr PAR_END                                           #TypeConversion
 ;
 
 lvalue:
@@ -206,11 +220,7 @@ relation_op:
 ;
 
 compositeLiteral:
-    S_BRA_INT S_BRA_END typeSpec C_BRA_INT (elementList)? C_BRA_END         #ArraySliceLiteral
-;
-
-elementList:
-    expr (COMMA expr)* COMMA?                                               #ElementListRule
+    S_BRA_INT S_BRA_END typeSpec C_BRA_INT (expressionList)? C_BRA_END      #ArraySliceLiteral
 ;
 
 statementEnd: SEMICOLON?;
