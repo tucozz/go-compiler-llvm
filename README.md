@@ -13,24 +13,30 @@ O link direto de download para a versão 4.13.2 é https://www.antlr.org/downloa
 
 Antes de compilar, centifique-se de que o Makefile está coerente com a versão do antlr que você está usando (modificando a variável ANTLR_PATH).
 
-Após isso, rode o comando:
+Após isso, rode os comandos:
 
-`make GRAMMAR=grammar/Go_Lexer.g`
+`cd grammar`
+
+`make`
 
 ## Execução
 
 Rode o comando para a execução do programa compilado:
 
-`make run GRAMMAR=grammar/Go_Lexer.g`
+`make run`
 
 ## Inputs
 
 Para rodar o programa usando inputs, modifique a variavel FILE:
 
-`make run GRAMMAR=grammar/Go_Lexer.g FILE=../inputs/<nome_do_input>.go`
+`make run FILE=../valid_tests/arrays/test1.go`
 
-Note que o arquivo deve ser acessado com ../ já que o programa roda a partir do diretório auxiliar lexer.
+Note que o arquivo deve ser acessado com ../ já que o programa roda a partir do diretório auxiliar grammar.
 
+## Script de testes
+Para rodar o script de testes, rode o comando na raíz do repositório:
+
+`./test_valid.sh`
 
 ## 1. Introdução
 
