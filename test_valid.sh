@@ -23,7 +23,7 @@ test_file() {
     total_count=$((total_count + 1))
     
     # Captura tanto stdout quanto stderr
-    output=$(make run-tree FILE="../valid_tests/$category/$file" 2>&1)
+    output=$(make -f ParserMakefile run-tree FILE="../valid_tests/$category/$file" 2>&1)
     exit_code=$?
     
     # Verifica se há erros de parsing (mensagens como "line X:Y ...")

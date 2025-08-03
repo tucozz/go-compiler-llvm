@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.ArrayList;
 
 /**
- * Tabela de símbolos específica para funções usando HashMap
+ * Tabela de funções melhorada para suportar tipos GoType
  */
 public class FunctionTable {
     private Map<String, FunctionInfo> functions;
@@ -23,17 +23,17 @@ public class FunctionTable {
     private void addBuiltInFunctions() {
         // println function - aceita qualquer tipo
         List<String> printlnParamNames = new ArrayList<>();
-        List<String> printlnParamTypes = new ArrayList<>();
+        List<GoType> printlnParamTypes = new ArrayList<>();
         printlnParamNames.add("args");
-        printlnParamTypes.add("string"); // Simplificado para string por enquanto
-        addFunction("println", printlnParamNames, printlnParamTypes, "void", 0);
+        printlnParamTypes.add(GoType.STRING); // Para simplicidade
+        addFunction("println", printlnParamNames, printlnParamTypes, GoType.VOID, 0);
         
         // len function - retorna int
         List<String> lenParamNames = new ArrayList<>();
-        List<String> lenParamTypes = new ArrayList<>();
+        List<GoType> lenParamTypes = new ArrayList<>();
         lenParamNames.add("obj");
-        lenParamTypes.add("string"); // Simplificado para string por enquanto
-        addFunction("len", lenParamNames, lenParamTypes, "int", 0);
+        lenParamTypes.add(GoType.STRING); // Arrays serão tratados depois
+        addFunction("len", lenParamNames, lenParamTypes, GoType.INT, 0);
         
         // Marca como definidas
         markAsDefined("println");
@@ -41,9 +41,9 @@ public class FunctionTable {
     }
     
     /**
-     * Adiciona uma função à tabela
+     * Adiciona uma função à tabela com tipos GoType
      */
-    public boolean addFunction(String name, List<String> parameterNames, List<String> parameterTypes, String returnType, int declarationLine) {
+    public boolean addFunction(String name, List<String> parameterNames, List<GoType> parameterTypes, GoType returnType, int declarationLine) {
         if (functions.containsKey(name)) {
             return false; // Função já existe
         }
@@ -64,6 +64,13 @@ public class FunctionTable {
      * Verifica se uma função existe
      */
     public boolean hasFunction(String name) {
+        return functions.containsKey(name);
+    }
+    
+    /**
+     * Verifica se uma função existe (método alternativo)
+     */
+    public boolean functionExists(String name) {
         return functions.containsKey(name);
     }
     

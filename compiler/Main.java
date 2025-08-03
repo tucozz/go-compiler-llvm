@@ -1,57 +1,69 @@
 package compiler;
 
 import java.io.IOException;
+
 import org.antlr.v4.runtime.CharStream;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
-// Imports para o lexer, parser e visitor, baseado nos pacotes que o ANTLR gera
+// Imports para o lexer e parser ANTLR (pacote Go_Parser)
 import Go_Parser.Go_Lexer;
 import Go_Parser.Go_Parser;
-import compiler.GoSemanticAnalyzer; // visitor
+
+import compiler.checker.GoSemanticChecker;
 
 public class Main {
 
     public static void main(String[] args) throws IOException {
         if (args.length == 0) {
             System.err.println("Usage: java -cp <classpath> compiler.Main <input_file.go>");
-            System.err.println("Example: make run_compiler FILE=inputs/myprogram.go");
+            System.err.println("Example: make test FILE=tests/arithmetics/test01/main.go");
             return;
         }
 
         String filePath = args[0];
-        CharStream input = CharStreams.fromFileName(filePath); // Lê o código do arquivo
-
-        // --- 1. Análise Léxica ---
-        Go_Lexer lexer = new Go_Lexer(input);
-        CommonTokenStream tokens = new CommonTokenStream(lexer);
-
-        // --- 2. Análise Sintática ---
-        Go_Parser parser = new Go_Parser(tokens);
-        ParseTree tree = parser.program(); // Inicia o parsing a partir da regra 'program'
-
-        // Verifica erros sintáticos
-        if (parser.getNumberOfSyntaxErrors() != 0) {
-            System.err.println("Parsing finished with syntax errors. Aborting semantic analysis.");
-            // Não imprime as tabelas se houver erros sintáticos, pois a árvore pode estar inconsistente.
-            return;
+        
+        System.out.println("Go Compiler - Análise Semântica com ANTLR");
+        System.out.println("Arquivo: " + filePath);
+        System.out.println();
+        
+        try {
+            // === 1. ANÁLISE LÉXICA ===
+            System.out.println("1. Análise Léxica...");
+            CharStream input = CharStreams.fromFileName(filePath);
+            Go_Lexer lexer = new Go_Lexer(input);
+            CommonTokenStream tokens = new CommonTokenStream(lexer);
+            
+            // === 2. ANÁLISE SINTÁTICA ===
+            System.out.println("2. Análise Sintática...");
+            Go_Parser parser = new Go_Parser(tokens);
+            ParseTree tree = parser.program(); // Regra inicial da gramática
+            
+            // === 3. ANÁLISE SEMÂNTICA ===
+            System.out.println("3. Análise Semântica...");
+            GoSemanticChecker visitor = new GoSemanticChecker();
+            
+            // Visitar a árvore sintática com o visitor
+            visitor.visit(tree);
+            
+            // Imprimir relatório da análise
+            visitor.printReport();
+            
+            System.out.println("\n✅ Análise concluída!");
+            
+            // Verificar erros sintáticos
+            if (parser.getNumberOfSyntaxErrors() > 0) {
+                System.err.println("❌ Erros sintáticos encontrados!");
+                return;
+            }
+            
+            System.out.println("✅ Parsing concluído com sucesso!");
+            System.out.println("Parse tree nodes: " + tree.getChildCount());
+            
+        } catch (Exception e) {
+            System.err.println("❌ Erro durante a análise: " + e.getMessage());
+            e.printStackTrace();
         }
-
-        // --- 3. Análise Semântica ---
-        GoSemanticAnalyzer semanticAnalyzer = new GoSemanticAnalyzer();
-        semanticAnalyzer.visit(tree); // Inicia o caminhamento da árvore de parse para a análise semântica
-
-        // --- 4. Relatório Final e Impressão das Tabelas (Atividade 4.2) ---
-        if (semanticAnalyzer.hasSemanticErrors()) {
-            System.err.println("\nSemantic analysis finished with ERRORS. Please fix them.");
-        } else {
-            System.out.println("\nSemantic analysis completed successfully. No semantic errors found.");
-        }
-
-        // Imprime as tabelas de símbolos e de strings, independentemente de erros
-        semanticAnalyzer.getSymbolTable().printTable();
-        semanticAnalyzer.getStringTable().printTable();
-        semanticAnalyzer.getFunctionTable().printTable();
     }
 }

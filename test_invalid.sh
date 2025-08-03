@@ -24,7 +24,7 @@ test_invalid_file() {
     total_count=$((total_count + 1))
     
     # Captura tanto stdout quanto stderr
-    output=$(make run-tree FILE="../invalid_tests/$category/$file" 2>&1)
+    output=$(make -f ParserMakefile run-tree FILE="../invalid_tests/$category/$file" 2>&1)
     exit_code=$?
     
     # Para arquivos inválidos, esperamos ERRO (exit_code != 0 OU mensagens de erro)

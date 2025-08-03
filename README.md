@@ -1,23 +1,54 @@
 # go-compiler-llvm
 
-## Repositório para o trabalho da disciplina de Compiladores.
-Nome dos integrantes:
-Arthur Estefanato Lopes, Gabriel Nascimento Oliveira, Pedro Henrique Bravim Duarte.
+## Repositório para o trabalho da disciplina de Compiladores
+**Integrantes:** Arthur Estefanato Lopes, Gabriel Nascimento Oliveira, Pedro Henrique Bravim Duarte.
 
-## Dependências
+## 🏗️ Arquitetura do Compilador
 
-Crie um diretório "tools" dentro da raíz e copie o arquivo jar da biblioteca antlr para lá.
-O link direto de download para a versão 4.13.2 é https://www.antlr.org/download/antlr-4.13.2-complete.jar.
+Este compilador Go implementa as três fases principais:
 
-## Compilação
+1. **Análise Léxica** - Tokenização usando ANTLR
+2. **Análise Sintática** - Parsing com gramática Go usando ANTLR  
+3. **Análise Semântica** - Verificação de tipos, escopos e regras semânticas
 
-Antes de compilar, centifique-se de que o Makefile está coerente com a versão do antlr que você está usando (modificando a variável ANTLR_PATH).
+## 📁 Estrutura do Projeto
 
-Após isso, rode os comandos:
+```
+├── grammar/          # Gramáticas ANTLR (.g)
+├── compiler/         # Código fonte Java
+│   ├── tables/       # Tabelas de símbolos
+│   ├── typing/       # Sistema de tipos
+│   └── checker/      # Análise semântica
+├── tests/            # Arquivos de teste Go
+├── tools/            # ANTLR JAR
+└── bin/              # Classes compiladas
+```
 
-`cd grammar`
+## 🛠️ Dependências
 
-`make`
+1. **Java 8+** 
+2. **ANTLR 4.13.2** - Baixe o JAR em: https://www.antlr.org/download/antlr-4.13.2-complete.jar
+3. Coloque o JAR em `tools/antlr-4.13.2-complete.jar`
+
+## 🚀 Compilação e Uso
+
+### Compilar tudo:
+```bash
+make all
+```
+
+### Testar um arquivo Go:
+```bash
+make test FILE=tests/arithmetics/test01/main.go
+```
+
+### Outros comandos úteis:
+```bash
+make test_semantic    # Testa SemanticChecker isolado
+make test_visitor     # Testa GoSemanticVisitor  
+make clean           # Remove arquivos gerados
+make info            # Mostra informações do projeto
+```
 
 ## Execução
 
