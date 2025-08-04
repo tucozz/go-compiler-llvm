@@ -406,39 +406,26 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     }
 
     /**
-     * Extrai parâmetros de função usando parsing melhorado com regex
+     * Extrai parâmetros de função usando contexto ANTLR direto
+     * Baseado no código de referência GoSemanticAnalyzer
      */
     private java.util.List<String> extractParameterNames(Go_Parser.FunctionDeclContext ctx) {
         java.util.List<String> parameters = new java.util.ArrayList<>();
         
-        // Parse simples do texto completo da função
-        String funcText = getTerminalText(ctx);
-        if (funcText != null) {
-            // Procurar por padrão de parênteses e extrair conteúdo
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\(([^)]+)\\)");
-            java.util.regex.Matcher matcher = pattern.matcher(funcText);
+        // Acessar signature -> parameters -> parameterList -> parameter
+        if (ctx.signature() != null) {
+            Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
             
-            if (matcher.find()) {
-                String paramText = matcher.group(1);
-                if (paramText != null && !paramText.trim().isEmpty()) {
-                    // Tentar separar por vírgulas primeiro
-                    if (paramText.contains(",")) {
-                        String[] params = paramText.split(",");
-                        for (String param : params) {
-                            param = param.trim();
-                            // Procurar padrão: nome seguido de tipo
-                            // Exemplos: "nint" -> "n", "arr[]int" -> "arr", "sizeint" -> "size"
-                            String paramName = extractNameFromParam(param);
-                            if (!paramName.isEmpty()) {
-                                parameters.add(paramName);
-                            }
-                        }
-                    } else {
-                        // Apenas um parâmetro
-                        String paramName = extractNameFromParam(paramText.trim());
-                        if (!paramName.isEmpty()) {
-                            parameters.add(paramName);
-                        }
+            if (funcSig.parameters() != null) {
+                Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
+                
+                if (paramsCtx.parameterList() != null) {
+                    Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
+                    
+                    for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
+                        Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
+                        String paramName = getTerminalText(paramDeclCtx.ID());
+                        parameters.add(paramName);
                     }
                 }
             }
@@ -483,38 +470,25 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     }
 
     /**
-     * Extrai tipos de parâmetros usando parsing melhorado com regex
+     * Extrai tipos de parâmetros usando contexto ANTLR direto
      */
     private java.util.List<String> extractParameterTypes(Go_Parser.FunctionDeclContext ctx) {
         java.util.List<String> types = new java.util.ArrayList<>();
         
-        // Parse simples do texto completo da função
-        String funcText = getTerminalText(ctx);
-        if (funcText != null) {
-            // Procurar por padrão de parênteses e extrair conteúdo
-            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("\\(([^)]+)\\)");
-            java.util.regex.Matcher matcher = pattern.matcher(funcText);
+        // Mesma estrutura que extractParameterNames, mas pega os tipos
+        if (ctx.signature() != null) {
+            Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
             
-            if (matcher.find()) {
-                String paramText = matcher.group(1);
-                if (paramText != null && !paramText.trim().isEmpty()) {
-                    // Tentar separar por vírgulas primeiro
-                    if (paramText.contains(",")) {
-                        String[] params = paramText.split(",");
-                        for (String param : params) {
-                            param = param.trim();
-                            // Procurar padrão: nome seguido de tipo
-                            String paramType = extractTypeFromParam(param);
-                            if (!paramType.isEmpty()) {
-                                types.add(paramType);
-                            }
-                        }
-                    } else {
-                        // Apenas um parâmetro
-                        String paramType = extractTypeFromParam(paramText.trim());
-                        if (!paramType.isEmpty()) {
-                            types.add(paramType);
-                        }
+            if (funcSig.parameters() != null) {
+                Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
+                
+                if (paramsCtx.parameterList() != null) {
+                    Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
+                    
+                    for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
+                        Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
+                        String paramType = getTerminalText(paramDeclCtx.typeSpec());
+                        types.add(paramType);
                     }
                 }
             }
@@ -747,11 +721,17 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Extrair nome da função usando reflexão
         String functionName = extractFunctionNameFromCall(ctx);
         
-        // Verificar se a função existe
+        // Se a função não existe, verificar se é built-in e adicioná-la
         if (!functionTable.hasFunction(functionName)) {
-            reportSemanticError(0, "undefined function '" + functionName + "'");
-        } else {
-            
+            if (isBuiltInFunction(functionName)) {
+                functionTable.addBuiltInFunctionIfNeeded(functionName);
+            } else {
+                reportSemanticError(extractLineNumber(ctx), "undefined function '" + functionName + "'");
+            }
+        }
+        
+        // Se agora a função existe, validar argumentos
+        if (functionTable.hasFunction(functionName)) {
             // Extrair argumentos da chamada
             java.util.List<String> arguments = extractCallArguments(ctx);
             
@@ -761,7 +741,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 List<GoType> expectedParamTypes = funcInfo.getParameterTypes();
                 
                 if (arguments.size() != expectedParamTypes.size()) {
-                    reportSemanticError(0, 
+                    reportSemanticError(extractLineNumber(ctx), 
                         "function '" + functionName + "' expects " + expectedParamTypes.size() + 
                         " arguments, got " + arguments.size());
                 } else {
@@ -773,7 +753,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                         GoType argType = inferArgumentType(arg);
                         
                         if (!areTypesCompatible(argType, expectedType)) {
-                            reportSemanticError(0, 
+                            reportSemanticError(extractLineNumber(ctx), 
                                 "argument " + (i + 1) + " to '" + functionName + 
                                 "': cannot convert " + argType.getTypeName() + 
                                 " to " + expectedType.getTypeName());
@@ -786,6 +766,13 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Continuar processamento dos argumentos
         super.visitCallExpression(ctx);
         return null;
+    }
+
+    /**
+     * Verifica se uma função é built-in do Go
+     */
+    private boolean isBuiltInFunction(String functionName) {
+        return "println".equals(functionName) || "len".equals(functionName);
     }
 
     /**
@@ -1308,7 +1295,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             for (VarEntry entry : allProcessedVariables) {
                 System.out.println("  " + entry.toString());
             }
-            System.out.println("Total variables: " + allProcessedVariables.size());
+            System.out.println("Total variables: " + allProcessedVariables.size());make run_compiler FILE=valid_tests/functions/test8.go
         }
         
         // Tabela de Funções

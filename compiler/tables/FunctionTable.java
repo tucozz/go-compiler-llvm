@@ -14,30 +14,39 @@ public class FunctionTable {
     
     public FunctionTable() {
         this.functions = new HashMap<>();
-        addBuiltInFunctions();
     }
-    
+
     /**
-     * Adiciona funções built-in do Go
+     * Adiciona uma função built-in se ela não existir ainda
      */
-    private void addBuiltInFunctions() {
-        // println function - aceita qualquer tipo
-        List<String> printlnParamNames = new ArrayList<>();
-        List<GoType> printlnParamTypes = new ArrayList<>();
-        printlnParamNames.add("args");
-        printlnParamTypes.add(GoType.STRING); // Para simplicidade
-        addFunction("println", printlnParamNames, printlnParamTypes, GoType.VOID, 0);
+    public void addBuiltInFunctionIfNeeded(String functionName) {
+        if (functions.containsKey(functionName)) {
+            return; // Já existe
+        }
         
-        // len function - retorna int
-        List<String> lenParamNames = new ArrayList<>();
-        List<GoType> lenParamTypes = new ArrayList<>();
-        lenParamNames.add("obj");
-        lenParamTypes.add(GoType.STRING); // Arrays serão tratados depois
-        addFunction("len", lenParamNames, lenParamTypes, GoType.INT, 0);
-        
-        // Marca como definidas
-        markAsDefined("println");
-        markAsDefined("len");
+        switch (functionName) {
+            case "println":
+                List<String> printlnParamNames = new ArrayList<>();
+                List<GoType> printlnParamTypes = new ArrayList<>();
+                printlnParamNames.add("args");
+                printlnParamTypes.add(GoType.STRING);
+                addFunction("println", printlnParamNames, printlnParamTypes, GoType.VOID, 0);
+                markAsDefined("println");
+                break;
+                
+            case "len":
+                List<String> lenParamNames = new ArrayList<>();
+                List<GoType> lenParamTypes = new ArrayList<>();
+                lenParamNames.add("obj");
+                lenParamTypes.add(GoType.STRING);
+                addFunction("len", lenParamNames, lenParamTypes, GoType.INT, 0);
+                markAsDefined("len");
+                break;
+                
+            default:
+                // Função built-in desconhecida - não fazer nada
+                break;
+        }
     }
     
     /**
@@ -137,7 +146,6 @@ public class FunctionTable {
      */
     public void clear() {
         functions.clear();
-        addBuiltInFunctions();
     }
     
     /**
