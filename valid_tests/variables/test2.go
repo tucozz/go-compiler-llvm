@@ -9,9 +9,11 @@ func greet(name string, age int) {
 func main() {
     var a int = 10
     var b int = 20
-    var name string = "João"
-    var age int = 25
-    
+    name := "João"
+    age := 25
+    score := 95
+    message := "Hello"
+
     var result int
     result = add(a, b)         // OK - variáveis int
     result = add(a, 5)         // OK - variável + literal

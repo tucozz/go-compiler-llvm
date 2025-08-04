@@ -71,78 +71,19 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         return typeTable;
     }
 
-    private void reportSemanticError(int lineNumber, String message) {
-        System.err.println("SEMANTIC ERROR (" + lineNumber + "): " + message);
+    /**
+     * Reporta erro semântico (versão simplificada)
+     */
+    private void reportSemanticError(String message) {
+        System.err.println("SEMANTIC ERROR (1): " + message);
         foundSemanticErrors = true;
     }
 
     /**
-     * Reporta erro semântico extraindo linha do contexto ANTLR
+     * Reporta erro semântico usando contexto ANTLR (simplificado)
      */
     private void reportSemanticError(Object ctx, String message) {
-        int lineNumber = extractLineNumber(ctx);
-        reportSemanticError(lineNumber, message);
-    }
-
-    /**
-     * Extrai número da linha de um contexto ANTLR usando função auxiliar
-     */
-    private int extractLineNumber(Object ctx) {
-        try {
-            // Tentar obter a linha usando métodos do ANTLR
-            java.lang.reflect.Method getStartMethod = ctx.getClass().getMethod("getStart");
-            Object token = getStartMethod.invoke(ctx);
-            
-            if (token != null) {
-                java.lang.reflect.Method getLineMethod = token.getClass().getMethod("getLine");
-                Object lineObj = getLineMethod.invoke(token);
-                if (lineObj instanceof Integer) {
-                    return (Integer) lineObj;
-                }
-            }
-        } catch (Exception e) {
-            // Se falhar, tentar abordagem alternativa
-            try {
-                // Verificar se tem método start() ou getStart()
-                java.lang.reflect.Method startMethod = null;
-                try {
-                    startMethod = ctx.getClass().getMethod("start");
-                } catch (NoSuchMethodException e1) {
-                    try {
-                        startMethod = ctx.getClass().getMethod("getStart");
-                    } catch (NoSuchMethodException e2) {
-                        // Nenhum método encontrado
-                    }
-                }
-                
-                if (startMethod != null) {
-                    Object token = startMethod.invoke(ctx);
-                    if (token != null) {
-                        java.lang.reflect.Method getLineMethod = token.getClass().getMethod("getLine");
-                        Object lineObj = getLineMethod.invoke(token);
-                        if (lineObj instanceof Integer) {
-                            return (Integer) lineObj;
-                        }
-                    }
-                }
-            } catch (Exception e2) {
-                // Última tentativa: verificar se o contexto tem informação direta de linha
-                try {
-                    java.lang.reflect.Field[] fields = ctx.getClass().getFields();
-                    for (java.lang.reflect.Field field : fields) {
-                        if (field.getName().toLowerCase().contains("line")) {
-                            Object value = field.get(ctx);
-                            if (value instanceof Integer) {
-                                return (Integer) value;
-                            }
-                        }
-                    }
-                } catch (Exception e3) {
-                    // Falhou em todas as tentativas
-                }
-            }
-        }
-        return 1; // Linha padrão se não conseguir extrair
+        reportSemanticError(message);
     }
 
     // --- PROGRAMA PRINCIPAL ---
@@ -183,7 +124,19 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Extrair informações da constante diretamente do contexto
         List<String> constNames = extractIdentifierNames(ctx);
         String typeInfo = extractTypeInfo(ctx);
-        int lineNumber = extractLineNumber(ctx);
+
+        int lineNumber = 1; // default
+        try {
+            if (ctx.identifierList() != null) {
+                // Usar reflexão simplificada para pegar start token
+                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+                if (startToken != null) {
+                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+                }
+            }
+        } catch (Exception e) {
+            lineNumber = 1;
+        }
 
         // Processar cada constante
         for (String constName : constNames) {
@@ -194,7 +147,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 if (!varTable.addConstant(constName, constType, lineNumber)) {
                     VarEntry existing = varTable.lookup(constName);
                     if (existing != null && varTable.existsInCurrentScope(constName)) {
-                        reportSemanticError(lineNumber, 
+                        reportSemanticError(ctx, 
                             "constant '" + constName + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
@@ -221,7 +174,19 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Extrair informações da variável diretamente do contexto
         List<String> varNames = extractIdentifierNames(ctx);
         String typeInfo = extractTypeInfo(ctx);
-        int lineNumber = extractLineNumber(ctx);
+        
+        int lineNumber = 1; // default
+        try {
+            if (ctx.identifierList() != null) {
+                // Usar reflexão simplificada para pegar start token
+                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+                if (startToken != null) {
+                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+                }
+            }
+        } catch (Exception e) {
+            lineNumber = 1; // fallback se falhar
+        }
         
         // Processar cada variável
         for (String varName : varNames) {
@@ -234,7 +199,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 if (!added) {
                     VarEntry existing = varTable.lookup(varName);
                     if (existing != null && varTable.existsInCurrentScope(varName)) {
-                        reportSemanticError(lineNumber, 
+                        reportSemanticError(
                             "variable '" + varName + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
@@ -273,8 +238,18 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 }
             }
         }
-        
-        int lineNumber = extractLineNumber(ctx);
+        int lineNumber = 1; // default
+        try {
+            if (ctx.identifierList() != null) {
+                // Usar reflexão simplificada para pegar start token
+                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+                if (startToken != null) {
+                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+                }
+            }
+        } catch (Exception e) {
+            lineNumber = 1; // fallback se falhar
+        }
         
         // Inferir tipo da expressão do lado direito
         List<String> exprTypes = new ArrayList<>();
@@ -305,7 +280,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 if (!added) {
                     VarEntry existing = varTable.lookup(varName);
                     if (existing != null && varTable.existsInCurrentScope(varName)) {
-                        reportSemanticError(lineNumber, 
+                        reportSemanticError(
                             "variable '" + varName + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
@@ -575,9 +550,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
-        // Tentar extrair nome da função usando reflexão
-        String functionName = extractFunctionName(ctx);
-        
+        String functionName = getTerminalText(ctx.ID());
+
         // Extrair parâmetros da função
         java.util.List<String> paramNames = extractParameterNames(ctx);
         java.util.List<String> paramTypeNames = extractParameterTypes(ctx);
@@ -587,7 +561,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         
         // Verificar se a função já foi declarada
         if (functionTable.hasFunction(functionName)) {
-            reportSemanticError(0, 
+            reportSemanticError(
                 "function '" + functionName + "' already declared");
             return null;
         }
@@ -614,14 +588,14 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
         
         // Adicionar parâmetros como variáveis locais no escopo da função
-        int functionLineNumber = extractLineNumber(ctx);
+        int functionLineNumber = 1; // Default fallback for function declarations
         for (int i = 0; i < paramNames.size(); i++) {
             String paramName = paramNames.get(i);
             String typeName = i < paramTypeNames.size() ? paramTypeNames.get(i) : "unknown";
             GoType paramType = convertStringToGoType(typeName);
             
             if (!varTable.addVariable(paramName, paramType, functionLineNumber)) {
-                reportSemanticError(functionLineNumber, "parameter '" + paramName + "' already declared");
+                reportSemanticError("parameter '" + paramName + "' already declared");
             } else {
                 // Adicionar parâmetros à lista de variáveis processadas para o relatório
                 VarEntry paramEntry = varTable.lookup(paramName);
@@ -641,7 +615,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         
         // Adicionar função à tabela com tipo de retorno correto
         if (!functionTable.addFunction(functionName, paramNamesJava, paramTypes, returnType, 0)) {
-            reportSemanticError(0, "Failed to add function '" + functionName + "'");
+            reportSemanticError("Failed to add function '" + functionName + "'");
         } else {
             // Marcar como definida (já que tem corpo)
             functionTable.markAsDefined(functionName);
@@ -658,32 +632,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         currentFunctionReturnType = null;
         
         return null;
-    }
-
-    /**
-     * Extrai o nome da função usando parsing melhorado
-     */
-    private String extractFunctionName(Go_Parser.FunctionDeclContext ctx) {
-        String funcText = getTerminalText(ctx);
-        if (funcText != null && funcText.contains("func")) {
-            // Procurar padrão: func <nome>(...
-            int funcIndex = funcText.indexOf("func");
-            if (funcIndex >= 0) {
-                String afterFunc = funcText.substring(funcIndex + 4).trim(); // Remove "func"
-                
-                // Encontrar primeiro token (nome da função) até o parêntese
-                int parenIndex = afterFunc.indexOf("(");
-                if (parenIndex > 0) {
-                    String name = afterFunc.substring(0, parenIndex).trim();
-                    if (!name.isEmpty()) {
-                        return name;
-                    }
-                }
-            }
-        }
-        
-        // Último fallback: usar nome genérico
-        return "function_" + System.currentTimeMillis();
     }
 
     @Override 
@@ -718,15 +666,14 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     @Override
     public Void visitCallExpression(Go_Parser.CallExpressionContext ctx) {
-        // Extrair nome da função usando reflexão
-        String functionName = extractFunctionNameFromCall(ctx);
+        String functionName = getTerminalText(ctx.ID());
         
         // Se a função não existe, verificar se é built-in e adicioná-la
         if (!functionTable.hasFunction(functionName)) {
             if (isBuiltInFunction(functionName)) {
                 functionTable.addBuiltInFunctionIfNeeded(functionName);
             } else {
-                reportSemanticError(extractLineNumber(ctx), "undefined function '" + functionName + "'");
+                reportSemanticError(ctx, "undefined function '" + functionName + "'");
             }
         }
         
@@ -741,7 +688,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 List<GoType> expectedParamTypes = funcInfo.getParameterTypes();
                 
                 if (arguments.size() != expectedParamTypes.size()) {
-                    reportSemanticError(extractLineNumber(ctx), 
+                    reportSemanticError(ctx, 
                         "function '" + functionName + "' expects " + expectedParamTypes.size() + 
                         " arguments, got " + arguments.size());
                 } else {
@@ -753,7 +700,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                         GoType argType = inferArgumentType(arg);
                         
                         if (!areTypesCompatible(argType, expectedType)) {
-                            reportSemanticError(extractLineNumber(ctx), 
+                            reportSemanticError(ctx, 
                                 "argument " + (i + 1) + " to '" + functionName + 
                                 "': cannot convert " + argType.getTypeName() + 
                                 " to " + expectedType.getTypeName());
@@ -773,20 +720,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     private boolean isBuiltInFunction(String functionName) {
         return "println".equals(functionName) || "len".equals(functionName);
-    }
-
-    /**
-     * Extrai nome da função de uma chamada usando contexto direto
-     */
-    private String extractFunctionNameFromCall(Go_Parser.CallExpressionContext ctx) {
-        // Usar parsing simples do texto da chamada
-        String callText = getTerminalText(ctx);
-        if (callText != null && callText.contains("(")) {
-            // Formato: "nomeFuncao(args)"
-            int parenIndex = callText.indexOf("(");
-            return callText.substring(0, parenIndex).trim();
-        }
-        return "unknown";
     }
 
     /**
@@ -939,7 +872,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     @Override
     public Void visitReturnStatementWithExpr(Go_Parser.ReturnStatementWithExprContext ctx) {
         if (currentFunctionName == null || currentFunctionReturnType == null) {
-            reportSemanticError(0, "return statement outside of function");
+            reportSemanticError("return statement outside of function");
             return null;
         }
         
@@ -949,7 +882,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         if (returnExpr == null || returnExpr.trim().isEmpty()) {
             // Return sem expressão
             if (currentFunctionReturnType != GoType.VOID) {
-                reportSemanticError(0, 
+                reportSemanticError(
                     "function '" + currentFunctionName + "' expects return type " + 
                     currentFunctionReturnType.getTypeName() + ", but got void");
             }
@@ -958,7 +891,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             GoType returnType = inferArgumentType(returnExpr.trim());
             
             if (!areTypesCompatible(returnType, currentFunctionReturnType)) {
-                reportSemanticError(0, 
+                reportSemanticError(
                     "function '" + currentFunctionName + "' expects return type " + 
                     currentFunctionReturnType.getTypeName() + ", but got " + 
                     returnType.getTypeName());
@@ -1154,11 +1087,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     @Override
     public Void visitArrayAccessExpr(Go_Parser.ArrayAccessExprContext ctx) {
-        
         // Extrair nome do array e índice usando reflexão
         String arrayName = extractArrayName(ctx);
         String indexExpr = extractArrayIndex(ctx);
-        
         
         // Verificar se o array existe
         if (arrayName != null && !arrayName.trim().isEmpty()) {
@@ -1170,7 +1101,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 if (indexExpr != null && !indexExpr.trim().isEmpty()) {
                     GoType indexType = inferArgumentType(indexExpr);
                     if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-                        reportSemanticError(0, 
+                        reportSemanticError(
                             "array index must be integer, got " + indexType.getTypeName());
                     }
                 }
@@ -1183,7 +1114,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                     
                     // Verificar se é realmente um array
                     if (!arrayType.isArray()) {
-                        reportSemanticError(0, 
+                        reportSemanticError(
                             "'" + arrayName + "' is not an array (type: " + arrayType.getTypeName() + ")");
                     } else {
                         
@@ -1191,7 +1122,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                         if (indexExpr != null && !indexExpr.trim().isEmpty()) {
                             GoType indexType = inferArgumentType(indexExpr);
                             if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-                                reportSemanticError(0, 
+                                reportSemanticError(
                                     "array index must be integer, got " + indexType.getTypeName());
                             }
                         }
@@ -1200,7 +1131,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             }
             // Array não encontrado em nenhuma tabela
             else {
-                reportSemanticError(0, "undefined array '" + arrayName + "'");
+                reportSemanticError("undefined array '" + arrayName + "'");
             }
         }
         
@@ -1238,7 +1169,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     public Void visitBreakStatementRule(Go_Parser.BreakStatementRuleContext ctx) {
         // Verificar se estamos dentro de um loop
         if (loopDepth == 0) {
-            reportSemanticError(0, "break statement not in loop");
+            reportSemanticError("break statement not in loop");
         }
         
         return null;
@@ -1251,7 +1182,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     public Void visitContinueStatementRule(Go_Parser.ContinueStatementRuleContext ctx) {
         // Verificar se estamos dentro de um loop
         if (loopDepth == 0) {
-            reportSemanticError(0, "continue statement not in loop");
+            reportSemanticError("continue statement not in loop");
         }
         
         return null;

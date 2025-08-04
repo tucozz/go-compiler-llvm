@@ -61,11 +61,6 @@ result:
     | parameters                                                            #ResultParameters
 ;
 
-// === FUNCTION TYPES ===
-functionType:
-    FUNC signature                                                          #FunctionTypeDefinition
-;
-
 typeSpec:
     INT                                                                     #TypeInt
     | INT8                                                                  #TypeInt8
@@ -85,7 +80,6 @@ typeSpec:
     | RUNE                                                                  #TypeRune
     | ID                                                                    #CustomType
     | S_BRA_INT S_BRA_END typeSpec                                          #ArrayType
-    | functionType                                                          #FunctionTypeSpec
 ;
 
 statement:
