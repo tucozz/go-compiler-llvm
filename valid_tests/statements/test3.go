@@ -1,13 +1,12 @@
-// Test 3: Assignment and increment/decrement
+// Test 4: Break and continue
 func main() {
-    x := 10
-    x = x + 5
-    x = x * 2
-    
-    y := 1
-    y++
-    y--
-    
-    z := y
-    z += 3
+    for i := 0; i < 10; i = i + 1 {
+        if i == 3 {
+            continue
+        }
+        if i == 7 {
+            break
+        }
+        x := i
+    }
 }

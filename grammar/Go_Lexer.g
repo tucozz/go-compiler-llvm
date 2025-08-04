@@ -7,13 +7,6 @@ WS : [ \t\n\r]+ -> skip ;
 COMMENT_A     : '//' ~[\r\n]* -> skip ;
 COMMENT_B     : '/*' ~[*/]* '*/' -> skip ;
 
-// Letras e Dígitos (fragmentos - não geram tokens)
-fragment LETTER         : [a-zA-Z_] ;
-fragment DECIMAL_DIGIT  : [0-9] ;
-fragment BINARY_DIGIT   : [0-1] ;
-fragment OCTAL_DIGIT    : [0-7] ;
-fragment HEX_DIGIT      : [0-9a-fA-F] ;
-
 // Keywords
 BREAK    : 'break' ;
 CASE     : 'case' ;
@@ -62,11 +55,6 @@ KW_TRUE  : 'true' ;
 KW_FALSE : 'false' ;
 
 // Operadores e Pontuação
-ASSIGN_PLUS : '+=' ;
-ASSIGN_MINUS : '-=' ;
-ASSIGN_TIMES : '*=' ;
-ASSIGN_OVER  : '/=' ;
-ASSIGN_MOD   : '%=' ;
 S_ASSIGN : ':=' ;
 OR       : '||' ;
 AND      : '&&' ;
@@ -96,31 +84,14 @@ COLON     : ':' ;
 COMMA     : ',' ;
 DOT       : '.' ;
 
-// Literais (DEVEM vir ANTES dos identificadores)
-FLOAT_LIT : DECIMAL_FLOAT_LIT | HEX_FLOAT_LIT ;
-INT_LIT : DECIMAL_LIT | BINARY_LIT | OCTAL_LIT | HEX_LIT ;
-STRING_LIT : INTERPRETED_STRING_LIT | RAW_STRING_LIT ;
+// Literais básicos simplificados
+INT_LIT : DIGITS | '0b' BINDIGITS | '0o' OCTDIGITS | '0x' HEXDIGITS | '0B' BINDIGITS | '0O' OCTDIGITS | '0X' HEXDIGITS ;
+FLOAT_LIT : DIGITS '.' DIGITS | DIGITS '.' DIGITS [eE] [+-]? DIGITS | DIGITS [eE] [+-]? DIGITS | '0x' HEXDIGITS '.' HEXDIGITS 'p' [+-]? DIGITS | '0X' HEXDIGITS '.' HEXDIGITS 'P' [+-]? DIGITS ;
+STRING_LIT : '"' ( ~["\\\r\n] | '\\' [abfnrtv\\"'0] | '\\x' [0-9a-fA-F] [0-9a-fA-F] )* '"' ;
 
-// Identifier (DEVE vir DEPOIS de keywords, tipos e literais)
-ID : LETTER [a-zA-Z0-9_]* ;
-
-// Fragments para literais (NÃO geram tokens)
-fragment DECIMAL_LIT : '0' | [1-9] ('_'? DECIMAL_DIGIT)* ;
-fragment BINARY_LIT  : '0' [bB] '_'? BINARY_DIGIT ('_'? BINARY_DIGIT)* ;
-fragment OCTAL_LIT   : '0' [oO]? '_'? OCTAL_DIGIT ('_'? OCTAL_DIGIT)* ;
-fragment HEX_LIT     : '0' [xX] '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ;
-
-fragment DECIMAL_FLOAT_LIT : DECIMAL_DIGITS '.' DECIMAL_DIGITS? DECIMAL_EXPONENT?
-                          | DECIMAL_DIGITS DECIMAL_EXPONENT
-                          | '.' DECIMAL_DIGITS DECIMAL_EXPONENT? ;
-fragment HEX_FLOAT_LIT : '0' [xX] HEX_MANTISSA HEX_EXPONENT ;
-
-fragment DECIMAL_DIGITS : DECIMAL_DIGIT ('_'? DECIMAL_DIGIT)* ;
-fragment DECIMAL_EXPONENT : [eE] [+-]? DECIMAL_DIGITS ;
-fragment HEX_MANTISSA : '_'? HEX_DIGIT ('_'? HEX_DIGIT)* ('.' ('_'? HEX_DIGIT ('_'? HEX_DIGIT)*)?)?
-                     | '.' HEX_DIGIT ('_'? HEX_DIGIT)* ;
-fragment HEX_EXPONENT : [pP] [+-]? DECIMAL_DIGITS ;
-
-fragment INTERPRETED_STRING_LIT : '"' ( ~["\\\r\n] | ESCAPE_SEQUENCE )* '"' ;
-fragment RAW_STRING_LIT : '`' ~[`]* '`' ;
-fragment ESCAPE_SEQUENCE : '\\' ( [abfnrtv\\"'0] | 'x' HEX_DIGIT HEX_DIGIT ) ;
+// Regras básicas conforme solicitado
+ID : [a-zA-Z_][a-zA-Z0-9_]* ;
+DIGITS : [0-9]+ ; 
+HEXDIGITS : [0-9a-fA-F]+ ; 
+BINDIGITS : [0-1]+ ; 
+OCTDIGITS : [0-7]+ ;

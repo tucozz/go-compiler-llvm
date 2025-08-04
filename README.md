@@ -3,7 +3,7 @@
 ## Repositório para o trabalho da disciplina de Compiladores
 **Integrantes:** Arthur Estefanato Lopes, Gabriel Nascimento Oliveira, Pedro Henrique Bravim Duarte.
 
-## 🏗️ Arquitetura do Compilador
+## Arquitetura do Compilador
 
 Este compilador Go implementa as três fases principais:
 
@@ -11,63 +11,64 @@ Este compilador Go implementa as três fases principais:
 2. **Análise Sintática** - Parsing com gramática Go usando ANTLR  
 3. **Análise Semântica** - Verificação de tipos, escopos e regras semânticas
 
-## 📁 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
-├── grammar/          # Gramáticas ANTLR (.g)
-├── compiler/         # Código fonte Java
-│   ├── tables/       # Tabelas de símbolos
-│   ├── typing/       # Sistema de tipos
-│   └── checker/      # Análise semântica
-├── tests/            # Arquivos de teste Go
-├── tools/            # ANTLR JAR
-└── bin/              # Classes compiladas
+├── grammar/              # Gramáticas ANTLR (.g)
+├── compiler/             # Código fonte Java
+│   ├── tables/           # Tabelas de símbolos
+│   ├── typing/           # Sistema de tipos
+│   └── checker/          # Análise semântica
+├── valid_tests/          # Arquivos de teste Go válidos
+├── invalid_tests/        # Arquivos de teste Go inválidos
+├── tools/                # ANTLR JAR
+├── bin/                  # Classes compiladas
+├── test_semantic_analysis.sh  # Script de teste completo
+├── test_valid.sh         # Script de teste de arquivos válidos (análise sintática)
+└── test_invalid.sh       # Script de teste de arquivos inválidos (análise sintática)
 ```
 
-## 🛠️ Dependências
+## Dependências
 
 1. **Java 8+** 
 2. **ANTLR 4.13.2** - Baixe o JAR em: https://www.antlr.org/download/antlr-4.13.2-complete.jar
 3. Coloque o JAR em `tools/antlr-4.13.2-complete.jar`
 
-## 🚀 Compilação e Uso
+## Compilação e Uso
 
 ### Compilar tudo:
 ```bash
-make all
+make
 ```
 
-### Testar um arquivo Go:
+### Scripts de Teste Automatizados:
+
+#### Teste Completo da Análise Semântica:
 ```bash
-make test FILE=tests/arithmetics/test01/main.go
+./test_semantic_analysis.sh
+```
+#### Teste de Arquivos Válidos para Análise Sintática:
+Antes de rodar o teste, entre na pasta `grammar` e execute:
+
+```bash
+cd grammar
+make -f ParserMakefile all
+cd ..
+```
+```bash
+./test_valid.sh
+```
+
+#### Teste de Arquivos Inválidos para Análise Sintática:
+```bash
+./test_invalid.sh
 ```
 
 ### Outros comandos úteis:
 ```bash
-make test_semantic    # Testa SemanticChecker isolado
-make test_visitor     # Testa GoSemanticVisitor  
 make clean           # Remove arquivos gerados
 make info            # Mostra informações do projeto
 ```
-
-## Execução
-
-Rode o comando para a execução do programa compilado:
-
-`make run`
-
-## Inputs
-
-Para rodar o programa usando inputs, modifique a variavel FILE:
-
-`make run FILE=../valid_tests/arrays/test1.go`
-
-Note que o arquivo deve ser acessado com ../ já que o programa roda a partir do diretório auxiliar grammar.
-
-## Script de testes
-Para rodar o script de testes, rode o comando na raíz do repositório:
-
-`./test_valid.sh`
 
 ## 1. Introdução
 

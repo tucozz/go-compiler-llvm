@@ -12,7 +12,6 @@ program:
 // === DECLARATIONS ===
 declaration:
     constDeclaration                                                        #ConstDeclarationStmt
-    | typeDeclaration                                                       #TypeDeclarationStmt  
     | varDeclaration                                                        #VarDeclarationStmt
 ;
 
@@ -22,10 +21,6 @@ constDeclaration:
 
 constSpec:
     identifierList (typeSpec)? ASSIGN expressionList                       #ConstSpecification
-;
-
-typeDeclaration:
-    TYPE (typeSpec | PAR_INT (typeSpec statementEnd)* PAR_END) statementEnd      #TypeDecl
 ;
 
 varDeclaration:
@@ -122,15 +117,6 @@ identifierList:
 
 assignment:
     lvalue ASSIGN expr statementEnd                                         #SimpleAssignStatement
-    | lvalue compound_assign_op expr statementEnd                           #CompoundAssignStatement
-;
-
-compound_assign_op:
-    ASSIGN_PLUS                                                             #PlusAssignOp
-    | ASSIGN_MINUS                                                          #MinusAssignOp
-    | ASSIGN_TIMES                                                          #TimesAssignOp
-    | ASSIGN_OVER                                                           #DivAssignOp
-    | ASSIGN_MOD                                                            #ModAssignOp
 ;
 
 inc_dec_stmt: 

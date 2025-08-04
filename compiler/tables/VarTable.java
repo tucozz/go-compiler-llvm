@@ -4,6 +4,8 @@ import compiler.typing.GoType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Stack;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Tabela de variáveis com suporte a escopos aninhados.
@@ -96,6 +98,62 @@ public class VarTable {
      */
     public int getScopeDepth() {
         return scopes.size();
+    }
+    
+    /**
+     * Imprime o conteúdo da tabela de variáveis
+     */
+    public void printTable() {
+        if (scopes.isEmpty()) {
+            System.out.println("No scopes available.");
+            return;
+        }
+        
+        boolean hasVariables = false;
+        int totalVariables = 0;
+        
+        for (int i = 0; i < scopes.size(); i++) {
+            Map<String, VarEntry> scope = scopes.get(i);
+            if (!scope.isEmpty()) {
+                if (!hasVariables) {
+                    System.out.println("Variables in scope " + (i + 1) + ":");
+                    hasVariables = true;
+                }
+                for (VarEntry entry : scope.values()) {
+                    System.out.println("  " + entry.toString());
+                    totalVariables++;
+                }
+            }
+        }
+        
+        if (!hasVariables) {
+            System.out.println("No variables declared in current scope.");
+        } else {
+            System.out.println("Total variables: " + totalVariables);
+        }
+    }
+    
+    /**
+     * Coleta todas as variáveis de todos os escopos para relatório final
+     */
+    public List<VarEntry> getAllVariables() {
+        List<VarEntry> allVars = new ArrayList<>();
+        for (Map<String, VarEntry> scope : scopes) {
+            allVars.addAll(scope.values());
+        }
+        return allVars;
+    }
+    
+    /**
+     * Verifica se há variáveis em qualquer escopo
+     */
+    public boolean hasAnyVariables() {
+        for (Map<String, VarEntry> scope : scopes) {
+            if (!scope.isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
     
     /**

@@ -77,6 +77,7 @@ public class TypeTable {
 
     /**
      * Determina o tipo resultante de uma operação binária
+     * Utiliza as tabelas de unificação da classe GoType
      */
     public GoType getBinaryOperationResultType(GoType leftType, GoType rightType, String operator) {
         // Se algum dos tipos é desconhecido, retorna desconhecido
@@ -84,39 +85,32 @@ public class TypeTable {
             return GoType.UNKNOWN;
         }
 
-        // Operações de comparação sempre retornam bool
-        if (operator.equals("==") || operator.equals("!=") ||
-                operator.equals("<") || operator.equals(">") ||
-                operator.equals("<=") || operator.equals(">=")) {
-            return GoType.BOOL;
+        // Usar as tabelas de unificação do GoType baseadas no operador
+        switch (operator) {
+            case "+":
+                return leftType.unifyPlus(rightType);
+                
+            case "-":
+            case "*":
+            case "/":
+            case "%":
+                return leftType.unifyArithmetic(rightType);
+                
+            case "==":
+            case "!=":
+            case "<":
+            case ">":
+            case "<=":
+            case ">=":
+                return leftType.unifyComparison(rightType);
+                
+            case "&&":
+            case "||":
+                return leftType.unifyLogical(rightType);
+                
+            default:
+                return GoType.UNKNOWN;
         }
-
-        // Operações lógicas (&&, ||) sempre retornam bool
-        if (operator.equals("&&") || operator.equals("||")) {
-            return GoType.BOOL;
-        }
-
-        // Operações aritméticas
-        if (operator.equals("+") || operator.equals("-") ||
-                operator.equals("*") || operator.equals("/") || operator.equals("%")) {
-
-            // Se ambos são do mesmo tipo, retorna esse tipo
-            if (leftType == rightType) {
-                return leftType;
-            }
-
-            // Promoção de tipos: float tem precedência sobre int
-            if (leftType.isFloat() || rightType.isFloat()) {
-                return GoType.FLOAT64;
-            }
-
-            // Se ambos são inteiros, retorna int
-            if (leftType.isInteger() && rightType.isInteger()) {
-                return GoType.INT;
-            }
-        }
-
-        return GoType.UNKNOWN;
     }
 
     /**

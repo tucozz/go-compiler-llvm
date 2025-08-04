@@ -102,4 +102,10 @@ public class StrTable {
             return value.hashCode();
         }
     }
+
+    public void printTable() {
+        for (StrEntry entry : table.values()) {
+            System.out.println(entry);
+        }
+    }
 }

@@ -57,9 +57,15 @@ compiler_javac: javac
 	@mkdir -p $(COMPILER_BIN_DIR)
 	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) $(COMPILER_SRC_DIR)/*.java $(COMPILER_SRC_DIR)/tables/*.java $(COMPILER_SRC_DIR)/checker/*.java $(COMPILER_SRC_DIR)/typing/*.java
 
-# Executa o compilador (Main.java)
+# Executa o compilador (Main.java) - compila tudo antes
 # Exemplo de uso: make run_compiler FILE=inputs/exemplo.go
 run_compiler: all # Depende de 'all' para garantir que tudo esteja compilado
+	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
+
+# Executa o compilador rapidamente (assume que já está compilado)
+# Para uso em scripts de teste em lote
+# Exemplo de uso: make run_compiler_fast FILE=inputs/exemplo.go
+run_compiler_fast:
 	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
 
 # Limpa todos os arquivos gerados
@@ -84,7 +90,9 @@ info:
 	@echo ""
 	@echo "Comandos principais:"
 	@echo "  make all             - Compila tudo (ANTLR + Java)"
-	@echo "  make test FILE=...   - Testa arquivo Go específico"
+	@echo "  make run_compiler FILE=... - Testa arquivo Go (compila antes)"
+	@echo "  make run_compiler_fast FILE=... - Testa arquivo Go (rápido)"
+	@echo "  make test_semantic_batch - Testa todos os valid_tests automaticamente"
 
 	@echo "  make clean           - Remove arquivos gerados"
 	@echo ""
@@ -95,4 +103,4 @@ info:
 # Mostra ajuda
 help: info
 
-.PHONY: all antlr antlr-lexer antlr-parser javac compiler_javac run_compiler test_semantic test_visitor test clean info help
+.PHONY: all antlr antlr-lexer antlr-parser javac compiler_javac run_compiler run_compiler_fast test_semantic_batch clean info help
