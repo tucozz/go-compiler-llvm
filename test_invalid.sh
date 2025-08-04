@@ -39,7 +39,7 @@ test_invalid_file() {
 }
 
 # Testar todas as categorias de arquivos inválidos
-for category in syntax_errors declarations functions statements expressions arrays keywords; do
+for category in syntax_errors declarations functions statements scopes expressions arrays keywords; do
     echo "=== Testing $category ==="
     if [ -d "../invalid_tests/$category" ]; then
         for file in ../invalid_tests/$category/*.go; do

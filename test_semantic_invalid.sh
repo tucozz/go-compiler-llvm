@@ -192,7 +192,7 @@ main() {
     compile_project
     
     # Testar cada categoria
-    categories=("arrays" "declarations" "expressions" "functions" "keywords" "statements" "syntax_errors")
+    categories=("arrays" "declarations" "expressions" "functions" "keywords" "scopes" "statements" "syntax_errors")
     
     for category in "${categories[@]}"; do
         # Se uma categoria específica foi solicitada, pular as outras
