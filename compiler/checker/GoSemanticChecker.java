@@ -1295,7 +1295,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             for (VarEntry entry : allProcessedVariables) {
                 System.out.println("  " + entry.toString());
             }
-            System.out.println("Total variables: " + allProcessedVariables.size());make run_compiler FILE=valid_tests/functions/test8.go
+            System.out.println("Total variables: " + allProcessedVariables.size());
         }
         
         // Tabela de Funções
