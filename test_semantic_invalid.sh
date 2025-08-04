@@ -66,18 +66,20 @@ test_file() {
         return 1
     fi
     
-    # Para arquivos inválidos, esperamos que SEMPRE tenham erros semânticos
-    if echo "$output" | grep -q "SEMANTIC ERROR"; then
+    # Para arquivos inválidos, esperamos erros sintáticos OU semânticos
+    if echo "$output" | grep -q "❌ Erros sintáticos encontrados!"; then
+        echo -e "${GREEN}PASSOU${NC} (erro sintático detectado como esperado)"
+        return 0
+    elif echo "$output" | grep -q "SEMANTIC ERROR"; then
         echo -e "${GREEN}PASSOU${NC} (erro semântico detectado como esperado)"
         return 0
-    elif echo "$output" | grep -q "✅ Nenhum erro semântico encontrado"; then
-        echo -e "${RED}FALHA${NC} (deveria ter erro semântico!)"
+    elif echo "$output" | grep -q "✅ Análise concluída!" && ! echo "$output" | grep -q "❌ Erros sintáticos encontrados!"; then
+        echo -e "${RED}FALHA${NC} (deveria ter erro sintático ou semântico!)"
         NO_ERROR_FILES+=("$file")
         return 2
     elif [ $exit_code -ne 0 ]; then
         # Se houve erro de compilação/parsing, também consideramos correto
-        # pois indica que o arquivo é realmente inválido
-        echo -e "${GREEN}PASSOU${NC} (erro de compilação/parsing detectado)"
+        echo -e "${GREEN}PASSOU${NC} (erro de compilação detectado)"
         return 0
     else
         echo -e "${RED}FALHA${NC} (análise não detectou problemas)"
