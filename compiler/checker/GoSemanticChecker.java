@@ -143,6 +143,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             System.out.println("DEBUG: lineNumber = " + lineNumber);
         } catch (Exception e) {
             System.out.println("DEBUG: Error getting line number: " + e.getMessage());
+            lineNumber = 1; // fallback se falhar
         }
 
 
@@ -205,6 +206,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             System.out.println("DEBUG: lineNumber = " + lineNumber);
         } catch (Exception e) {
             System.out.println("DEBUG: Error getting line number: " + e.getMessage());
+            lineNumber = 1; // fallback se falhar
         }
         
         // Processar cada variável
@@ -240,9 +242,50 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     // --- DECLARAÇÕES CURTAS ---
 
+    // Não está inferindo o tipo da expressão do lado direito, apenas processando como "unknown"
     @Override
     public Void visitShortVariableDecl(Go_Parser.ShortVariableDeclContext ctx) {
-        // Extrair nomes das variáveis usando contexto direto
+        System.out.println("DEBUG: ShortVariableDecl");
+        
+        // Extrair identifierList
+        String[] identifiers = ctx.identifierList().getText().split(",");
+        for (String id : identifiers) {
+            System.out.println("DEBUG: identifier = " + id.trim());
+        }
+
+        // Extrair número da linha
+        int lineNumber = 1; // default
+        try {
+            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+            System.out.println("DEBUG: lineNumber = " + lineNumber);
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
+            lineNumber = 1; // fallback se falhar
+        }
+
+        // Inferir tipo da expressão do lado direito
+        String expressionList;
+        try {
+            Method getTextMethod = ctx.expressionList().getClass().getMethod("getText");
+            expressionList = (String) getTextMethod.invoke(ctx.expressionList());
+        } catch (Exception e) {
+            expressionList = "unknown";
+        }
+        System.out.println("DEBUG: expressionList = " + expressionList);
+
+        List<String> exprTypes = new ArrayList<>();
+        if (expressionList.contains("[]int")) {
+            exprTypes.add("[]int");
+        } else if (expressionList.contains("[]string")) {
+            exprTypes.add("[]string");
+        } else if (expressionList.contains("[]bool")) {
+            exprTypes.add("[]bool");
+        } else {
+            // Por enquanto, assumir tipo desconhecido para outras expressões
+            exprTypes.add("unknown");
+        }
+        
         List<String> varNames = new ArrayList<>();
         if (ctx.identifierList() != null) {
             // Usar getTerminalText diretamente no contexto ANTLR
@@ -255,67 +298,37 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 }
             }
         }
-        int lineNumber = 1; // default
-        try {
-            if (ctx.identifierList() != null) {
-                // Usar reflexão simplificada para pegar start token
-                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-                if (startToken != null) {
-                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-                }
-            }
-        } catch (Exception e) {
-            lineNumber = 1; // fallback se falhar
-        }
-        
-        // Inferir tipo da expressão do lado direito
-        List<String> exprTypes = new ArrayList<>();
-        String ctxText = getTerminalText(ctx);
-        
-        if (ctxText.contains("[]int")) {
-            exprTypes.add("[]int");
-        } else if (ctxText.contains("[]string")) {
-            exprTypes.add("[]string");
-        } else if (ctxText.contains("[]bool")) {
-            exprTypes.add("[]bool");
-        } else {
-            // Por enquanto, assumir tipo desconhecido para outras expressões
-            exprTypes.add("unknown");
-        }
-        
-        // Processar cada variável (assumindo correspondência 1:1)
-        for (int i = 0; i < varNames.size(); i++) {
-            String varName = varNames.get(i);
-            String typeInfo = i < exprTypes.size() ? exprTypes.get(i) : "unknown";
-            
-            if (varName != null && !varName.isEmpty()) {
-                GoType varType = GoType.fromString(typeInfo);
-                
+
+        String inferredType = "unknown";
+        // Processar cada variável
+        for (int i = 0; i < identifiers.length; i++) {
+            String id = identifiers[i].trim();
+            if (id != null && !id.isEmpty()) {
+                GoType varType = GoType.fromString(inferredType);
+
                 // Tentar adicionar a variável à tabela
-                boolean added = varTable.addVariable(varName, varType, lineNumber);
-                
-                if (!added) {
-                    VarEntry existing = varTable.lookup(varName);
-                    if (existing != null && varTable.existsInCurrentScope(varName)) {
+                if (!varTable.addVariable(id, varType, lineNumber)) {
+                    VarEntry existing = varTable.lookup(id);
+                    if (existing != null && varTable.existsInCurrentScope(id)) {
                         reportSemanticError(
-                            "variable '" + varName + "' already declared at line " + existing.getDeclarationLine());
+                            "variable '" + id + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
                     // Adicionar à lista de variáveis processadas para o relatório
-                    VarEntry varEntry = varTable.lookup(varName);
+                    VarEntry varEntry = varTable.lookup(id);
                     if (varEntry != null) {
                         allProcessedVariables.add(varEntry);
                     }
                     
                     // Adicionar também à tabela de tipos para referência
-                    typeTable.addVariable(varName, varType);
+                    typeTable.addVariable(id, varType);
                     
                     // Se for um array, adicionar à ArrayTable
-                    processArrayDeclaration(varName, typeInfo, lineNumber);
+                    processArrayDeclaration(id, inferredType, lineNumber);
                 }
             }
         }
-        
+    
         return null;
     }
 
