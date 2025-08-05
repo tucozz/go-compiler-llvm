@@ -122,7 +122,7 @@ forRangeClause:
 ;
 
 returnStmt: 
-    RETURN expr? statementEnd                                               #ReturnStatementWithExpr
+    RETURN expr? statementEnd                                               #ReturnStatement
 ;
 
 breakStmt:

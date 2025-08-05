@@ -358,22 +358,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         return type != null ? type : GoType.UNKNOWN;
     }
 
-    /**
-     * Extrai o texto de um contexto de tipo usando reflexão como fallback
-     * para manter compatibilidade
-     */
-    private String getTypeText(Go_Parser.TypeSpecContext typeSpec) {
-        if (typeSpec == null) return "unknown";
-        
-        // Para manter funcionando enquanto migra, usar reflexão como fallback
-        try {
-            Method getTextMethod = typeSpec.getClass().getMethod("getText");
-            return (String) getTextMethod.invoke(typeSpec);
-        } catch (Exception e) {
-            return "unknown";
-        }
-    }
-
     // --- FUNÇÕES ---
 
     @Override
@@ -733,15 +717,18 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      * Processa statements de return
      */
     @Override
-    public Void visitReturnStatementWithExpr(Go_Parser.ReturnStatementWithExprContext ctx) {
+    public Void visitReturnStatement(Go_Parser.ReturnStatementContext ctx) {
+        System.out.println("DEBUG: Return Statement");
         if (currentFunctionName == null || currentFunctionReturnType == null) {
             reportSemanticError("return statement outside of function");
             return null;
         }
-        
-        // Extrair expressão de retorno usando reflexão
-        String returnExpr = extractReturnExpression(ctx);
-        
+        String returnExpr = null;
+        if (ctx.expr() != null) {
+            returnExpr = ctx.expr().getText();
+        }
+        System.out.println("DEBUG: Return Expression = " + returnExpr);
+
         if (returnExpr == null || returnExpr.trim().isEmpty()) {
             // Return sem expressão
             if (currentFunctionReturnType != GoType.VOID) {
@@ -762,18 +749,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
         
         // Continuar processamento
-        super.visitReturnStatementWithExpr(ctx);
+        super.visitReturnStatement(ctx);
         return null;
-    }
-
-    /**
-     * Extrai expressão de return usando contexto direto
-     */
-    private String extractReturnExpression(Go_Parser.ReturnStatementWithExprContext ctx) {
-        if (ctx != null && ctx.expr() != null) {
-            return getTerminalText(ctx.expr());
-        }
-        return null; // Return sem expressão
     }
 
     // --- STATEMENTS DE CONTROLE ---
@@ -906,7 +883,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
         // Continuar processamento automático dos blocos
         super.visitIfElseStatement(ctx);
-        
+
         return null;
     }
 
