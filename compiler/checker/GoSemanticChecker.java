@@ -147,7 +147,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             lineNumber = 1; // fallback se falhar
         }
 
-
         // Processar cada constante
         for (String id : identifiers) {
             if (id != null && !id.isEmpty()) {
@@ -347,117 +346,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     }
 
     /**
-     * Extrai parâmetros de função usando contexto ANTLR direto
-     * Baseado no código de referência GoSemanticAnalyzer
-     */
-    // private java.util.List<String> extractParameterNames(Go_Parser.FunctionDeclContext ctx) {
-    //     java.util.List<String> parameters = new java.util.ArrayList<>();
-        
-    //     // Acessar signature -> parameters -> parameterList -> parameter
-    //     if (ctx.signature() != null) {
-    //         Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
-            
-    //         if (funcSig.parameters() != null) {
-    //             Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
-                
-    //             if (paramsCtx.parameterList() != null) {
-    //                 Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
-                    
-    //                 for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
-    //                     Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
-    //                     String paramName = getTerminalText(paramDeclCtx.ID());
-    //                     parameters.add(paramName);
-    //                 }
-    //             }
-    //         }
-    //     }
-        
-    //     return parameters;
-    // }
-    
-    // /**
-    //  * Extrai nome do parâmetro de uma string como "nint" -> "n" ou "arr[]int" -> "arr"
-    //  */
-    // private String extractNameFromParam(String param) {
-    //     if (param == null || param.isEmpty()) return "";
-        
-    //     // Casos comuns de tipos Go (verificar []types primeiro)
-    //     String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
-        
-    //     for (String type : goTypes) {
-    //         if (param.endsWith(type)) {
-    //             String name = param.substring(0, param.length() - type.length());
-    //             // Remover [] extras se presente no nome
-    //             if (name.endsWith("[]")) {
-    //                 name = name.substring(0, name.length() - 2);
-    //             }
-    //             if (!name.isEmpty()) {
-    //                 return name;
-    //             }
-    //         }
-    //     }
-        
-    //     // Se não conseguiu extrair pelo sufixo, tentar por análise de caracteres
-    //     // Procurar primeira sequência de letras minúsculas como nome
-    //     for (int i = 1; i < param.length(); i++) {
-    //         char c = param.charAt(i);
-    //         if (Character.isUpperCase(c) || c == '[' || Character.isDigit(c)) {
-    //             return param.substring(0, i);
-    //         }
-    //     }
-        
-    //     // Fallback: usar a string inteira
-    //     return param;
-    // }
-
-    // /**
-    //  * Extrai tipos de parâmetros usando contexto ANTLR direto
-    //  */
-    // private java.util.List<String> extractParameterTypes(Go_Parser.FunctionDeclContext ctx) {
-    //     java.util.List<String> types = new java.util.ArrayList<>();
-        
-    //     // Mesma estrutura que extractParameterNames, mas pega os tipos
-    //     if (ctx.signature() != null) {
-    //         Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
-            
-    //         if (funcSig.parameters() != null) {
-    //             Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
-                
-    //             if (paramsCtx.parameterList() != null) {
-    //                 Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
-                    
-    //                 for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
-    //                     Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
-    //                     String paramType = getTerminalText(paramDeclCtx.typeSpec());
-    //                     types.add(paramType);
-    //                 }
-    //             }
-    //         }
-    //     }
-        
-    //     return types;
-    // }
-    
-    // /**
-    //  * Extrai tipo do parâmetro de uma string como "nint" -> "int" ou "arr[]int" -> "[]int"
-    //  */
-    // private String extractTypeFromParam(String param) {
-    //     if (param == null || param.isEmpty()) return "unknown";
-        
-    //     // Casos comuns de tipos Go
-    //     String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
-        
-    //     for (String type : goTypes) {
-    //         if (param.endsWith(type)) {
-    //             return type;
-    //         }
-    //     }
-        
-    //     // Se não conseguiu extrair pelo sufixo, retornar unknown
-    //     return "unknown";
-    // }
-
-    /**
      * Converte string de tipo para GoType
      */
     private GoType convertStringToGoType(String typeName) {
@@ -468,32 +356,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Usar o método fromString do GoType
         GoType type = GoType.fromString(typeName);
         return type != null ? type : GoType.UNKNOWN;
-    }
-
-    /**
-     * Extrai tipo de retorno de função diretamente do contexto ANTLR
-     */
-    private String extractReturnType(Go_Parser.FunctionDeclContext ctx) {
-        if (ctx == null) return "void";
-        
-        if (ctx.signature() != null && ctx.signature() instanceof Go_Parser.FunctionSignatureContext) {
-            Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
-            
-            if (funcSig.result() != null) {
-                Go_Parser.ResultContext result = funcSig.result();
-                
-                if (result instanceof Go_Parser.ResultSingleTypeContext) {
-                    Go_Parser.ResultSingleTypeContext singleType = (Go_Parser.ResultSingleTypeContext) result;
-                    if (singleType.typeSpec() != null) {
-                        String returnType = getTypeText(singleType.typeSpec());
-                        return returnType;
-                    }
-                }
-            }
-        }
-        
-        // Se não tem result explícito, é void
-        return "void";
     }
 
     /**
@@ -517,6 +379,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
         String functionName = ctx.ID().toString();
+        currentFunctionName = functionName;
 
         // Verificar se a função já foi declarada
         if (functionTable.hasFunction(functionName)) {
@@ -541,15 +404,14 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("DEBUG: ID Nodes = " + idNodes);
         
         // Tipos dos parâmetros
-        List<String> paramTypeNames = new ArrayList<>();
+        List<GoType> paramTypeNames = new ArrayList<>();
         for (Go_Parser.TypeSpecContext typeNode : paramsDecl.typeSpec()) {
-            paramTypeNames.add(getTypeText(typeNode));
+            paramTypeNames.add(convertStringToGoType(typeNode.getText()));
         }
         System.out.println("DEBUG: Parameter Types = " + paramTypeNames);
 
         // Retorno da função
         GoType returnType = GoType.VOID; // Default se não especificado
-
         Go_Parser.ResultContext result = signature.result();
         if(result != null) {
             if (result instanceof Go_Parser.ResultSingleTypeContext) { // Tipo único de retorno
@@ -558,103 +420,108 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
             }
         }
+        currentFunctionReturnType = returnType;
+        System.out.println("DEBUG: Return Type = " + returnType);
 
-    
-        // // Extrair tipo de retorno da função
-        // String returnTypeName = extractReturnType(ctx);
-        
-        
-        
-        // // Converter nomes de tipos para GoType
-        // List<String> paramNamesJava = new ArrayList<>();
-        // List<GoType> paramTypes = new ArrayList<>();
-        // GoType returnType = convertStringToGoType(returnTypeName);
-        
-        // // Rastrear função atual para validação de returns
-        // currentFunctionName = functionName;
-        // currentFunctionReturnType = returnType;
-        
-        // for (String paramName : paramNames) {
-        //     paramNamesJava.add(paramName);
-        // }
-        
-        // for (String typeName : paramTypeNames) {
-        //     GoType goType = convertStringToGoType(typeName);
-        //     paramTypes.add(goType);
-        // }
-        
-        // // Adicionar parâmetros como variáveis locais no escopo da função
-        // int functionLineNumber = 1; // Default fallback for function declarations
-        // for (int i = 0; i < paramNames.size(); i++) {
-        //     String paramName = paramNames.get(i);
-        //     String typeName = i < paramTypeNames.size() ? paramTypeNames.get(i) : "unknown";
-        //     GoType paramType = convertStringToGoType(typeName);
-            
-        //     if (!varTable.addVariable(paramName, paramType, functionLineNumber)) {
-        //         reportSemanticError("parameter '" + paramName + "' already declared");
-        //     } else {
-        //         // Adicionar parâmetros à lista de variáveis processadas para o relatório
-        //         VarEntry paramEntry = varTable.lookup(paramName);
-        //         if (paramEntry != null) {
-        //             allProcessedVariables.add(paramEntry);
-        //         }
+        // Extrair número da linha da declaração da função
+        int lineNumber = 1; // default
+        try {
+            Object startToken = ctx.getClass().getMethod("getStart").invoke(ctx);
+            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+            System.out.println("DEBUG: lineNumber = " + lineNumber);
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
+            lineNumber = 1; // fallback se falhar
+        }
+        System.out.println("DEBUG: Line Number = " + lineNumber);
+
+        // Adicionar parâmetros como variáveis locais no escopo da função
+        for (int i = 0; i < paramNames.size(); i++) {
+            String id = paramNames.get(i);
+            GoType type = paramTypeNames.get(i);
+
+            if (!varTable.addVariable(id, type, lineNumber)) {
+                reportSemanticError("parameter '" + id + "' already declared");
+            } else {
+                // Adicionar parâmetros à lista de variáveis processadas para o relatório
+                VarEntry paramEntry = varTable.lookup(id);
+                if (paramEntry != null) {
+                    allProcessedVariables.add(paramEntry);
+                }
                 
-        //         // Se for um array, adicionar também à ArrayTable
-        //         if (ArrayTable.isArrayType(typeName)) {
-        //             ArrayInfo arrayInfo = ArrayTable.parseArrayType(typeName);
-        //             if (arrayInfo != null) {
-        //                 arrayTable.addArray(paramName, arrayInfo.getElementType(), arrayInfo.getSize(), functionLineNumber);
-        //             }
-        //         }
-        //     }
-        // }
+                // Se for um array, adicionar também à ArrayTable
+                if (ArrayTable.isArrayType(type.getTypeName())) {
+                    ArrayInfo arrayInfo = ArrayTable.parseArrayType(type.getTypeName());
+                    if (arrayInfo != null) {
+                        arrayTable.addArray(id, arrayInfo.getElementType(), arrayInfo.getSize(), lineNumber);
+                    }
+                }
+            }
+        }
         
-        // // Adicionar função à tabela com tipo de retorno correto
-        // if (!functionTable.addFunction(functionName, paramNamesJava, paramTypes, returnType, 0)) {
-        //     reportSemanticError("Failed to add function '" + functionName + "'");
-        // } else {
-        //     // Marcar como definida (já que tem corpo)
-        //     functionTable.markAsDefined(functionName);
-        // }
+        // Adicionar função à tabela com tipo de retorno correto
+        if (!functionTable.addFunction(functionName, paramNames, paramTypeNames, returnType, lineNumber)) {
+            reportSemanticError("Failed to add function '" + functionName + "'");
+        } else {
+            // Marcar como definida (já que tem corpo)
+            functionTable.markAsDefined(functionName);
+        }
         
-        // // Processar corpo da função (delegar aos visitadores padrão)
-        // super.visitFunctionDecl(ctx);
+        // Processar corpo da função (delegar aos visitadores padrão)
+        super.visitFunctionDecl(ctx);
         
-        // // Sair do escopo da função
-        // varTable.exitScope();
+        // Sair do escopo da função
+        varTable.exitScope();
         
-        // // Limpar rastreamento da função atual
-        // currentFunctionName = null;
-        // currentFunctionReturnType = null;
+        // Limpar rastreamento da função atual
+        currentFunctionName = null;
+        currentFunctionReturnType = null;
         
         return null;
     }
 
     @Override 
     public Void visitBlockCode(Go_Parser.BlockCodeContext ctx) {
-        // Entrar em novo escopo para blocos
-        varTable.enterScope();
-        
-        // Processar conteúdo do bloco
-        super.visitBlockCode(ctx);
-        
-        // Sair do escopo
-        varTable.exitScope();
-        
+        varTable.enterScope(); // Entrar em novo escopo para blocos
+        super.visitBlockCode(ctx); // Processar conteúdo do bloco
+        varTable.exitScope(); // Sair do escopo
         return null;
     }
 
     // --- LITERAIS ---
+    @Override
+    public Void visitIdExpr(Go_Parser.IdExprContext ctx) {
+        return super.visitIdExpr(ctx);
+    }
+
+    @Override
+    public Void visitIntLiteral(Go_Parser.IntLiteralContext ctx) {
+        return super.visitIntLiteral(ctx);
+    }
+
+    @Override
+    public Void visitFloatLiteral(Go_Parser.FloatLiteralContext ctx) {
+        return super.visitFloatLiteral(ctx);
+    }
 
     @Override
     public Void visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
-        // Processar literais de string
         return super.visitStringLiteral(ctx);
     }
 
     @Override
-    public Void visitIdExpr(Go_Parser.IdExprContext ctx) {
-        return super.visitIdExpr(ctx);
+    public Void visitTrueLiteral(Go_Parser.TrueLiteralContext ctx) {
+        return super.visitTrueLiteral(ctx);
+    }
+
+    @Override
+    public Void visitFalseLiteral(Go_Parser.FalseLiteralContext ctx) {
+        return super.visitFalseLiteral(ctx);
+    }
+
+    @Override
+    public Void visitParenthesizedExpr(Go_Parser.ParenthesizedExprContext ctx) {
+        return super.visitParenthesizedExpr(ctx);
     }
 
     /**
@@ -1023,23 +890,20 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     @Override
     public Void visitIfElseStatement(Go_Parser.IfElseStatementContext ctx) {
-        
+        System.out.println("DEBUG: IfElseStatement");
         // Extrair e validar condição do if
-        String condition = null;
-        if (ctx.expr() != null) {
-            condition = getTerminalText(ctx.expr());
-        }
+        String condition = ctx.expr().getText();
+        System.out.println("DEBUG: If condition = " + condition);
         
         if (condition != null && !condition.trim().isEmpty()) {
             GoType conditionType = inferArgumentType(condition);
-            
+            System.out.println("DEBUG: If condition (inferred) = " + conditionType.getTypeName());
             // Em Go, condições devem ser do tipo bool
             if (conditionType != GoType.BOOL && conditionType != GoType.UNKNOWN) {
                 reportSemanticError(ctx, 
                     "if condition must be boolean, got " + conditionType.getTypeName());
             }
         }
-        
         // Continuar processamento automático dos blocos
         super.visitIfElseStatement(ctx);
         
@@ -1167,7 +1031,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         if (loopDepth == 0) {
             reportSemanticError("break statement not in loop");
         }
-        
         return null;
     }
 
@@ -1184,13 +1047,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         return null;
     }
 
-    // --- EXPRESSÕES PARENTIZADAS ---
-
-    @Override
-    public Void visitParenthesizedExpr(Go_Parser.ParenthesizedExprContext ctx) {
-        super.visitParenthesizedExpr(ctx);
-        return null;
-    }
 
     // --- STATEMENTS SIMPLES ---
 

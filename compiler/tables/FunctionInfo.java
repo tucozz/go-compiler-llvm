@@ -72,15 +72,6 @@ public class FunctionInfo {
         return parameterNames.size();
     }
 
-    // Getter para compatibilidade com código existente que espera strings
-    public List<String> getParameterTypesAsString() {
-        List<String> typeStrings = new ArrayList<>();
-        for (GoType type : parameterTypes) {
-            typeStrings.add(type.toString());
-        }
-        return typeStrings;
-    }
-
     public String getReturnTypeAsString() {
         return returnType.toString();
     }
@@ -90,26 +81,7 @@ public class FunctionInfo {
         this.isDefined = defined;
     }
 
-    // /**
-    //  * Verifica se uma chamada de função é compatível
-    //  */
-    // public boolean isCallCompatible(List<String> argumentTypeStrings) {
-    //     if (parameterTypes.size() != argumentTypeStrings.size()) {
-    //         return false;
-    //     }
-
-    //     for (int i = 0; i < parameterTypes.size(); i++) {
-    //         GoType paramType = parameterTypes.get(i);
-    //         GoType argType = GoType.fromString(argumentTypeStrings.get(i));
-
-    //         if (!paramType.isCompatibleWith(argType)) {
-    //             return false;
-    //         }
-    //     }
-
-    //     return true;
-    // }
-        /**
+    /**
      * Verifica se uma chamada de função é compatível com os tipos de argumentos fornecidos
      */
     public boolean isCallCompatible(List<GoType> argumentTypes) {
