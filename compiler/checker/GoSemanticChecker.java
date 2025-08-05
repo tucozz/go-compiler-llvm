@@ -285,19 +285,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             // Por enquanto, assumir tipo desconhecido para outras expressões
             exprTypes.add("unknown");
         }
-        
-        List<String> varNames = new ArrayList<>();
-        if (ctx.identifierList() != null) {
-            // Usar getTerminalText diretamente no contexto ANTLR
-            String fullIdList = getTerminalText(ctx.identifierList());
-            if (fullIdList != null && !fullIdList.isEmpty()) {
-                // Parsing simples por vírgulas para múltiplas variáveis
-                String[] ids = fullIdList.split(",");
-                for (String id : ids) {
-                    varNames.add(id.trim());
-                }
-            }
-        }
 
         String inferredType = "unknown";
         // Processar cada variável
