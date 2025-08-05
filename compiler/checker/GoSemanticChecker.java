@@ -88,80 +88,88 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     // --- PROGRAMA PRINCIPAL ---
 
+    // Visita a regra program: (statement)* EOF
     @Override
     public Void visitProgramRule(Go_Parser.ProgramRuleContext ctx) {
-        return super.visitProgramRule(ctx);
+        for (Go_Parser.StatementContext stmtCtx : ctx.statement()) {
+            visit(stmtCtx);
+        }
+        return null;
     }
+
 
     // --- DECLARAÇÕES ---
 
     @Override
-    public Void visitConstDeclarationStmt(Go_Parser.ConstDeclarationStmtContext ctx) {
-        return super.visitConstDeclarationStmt(ctx);
-    }
-
-    @Override
-    public Void visitVarDeclarationStmt(Go_Parser.VarDeclarationStmtContext ctx) {
-        return super.visitVarDeclarationStmt(ctx);
-    }
-
-    // --- DECLARAÇÕES ESPECÍFICAS ---
-
-    @Override
     public Void visitConstDecl(Go_Parser.ConstDeclContext ctx) {
+        System.out.println("DEBUG: ConstDecl Principal");
         return super.visitConstDecl(ctx);
     }
 
     @Override
     public Void visitVarDecl(Go_Parser.VarDeclContext ctx) {
+        System.out.println("DEBUG: VarDecl Principal");
         return super.visitVarDecl(ctx);
     }
 
     // --- ESPECIFICAÇÕES ---
 
+    // Regra identifierList (typeSpec)? ASSIGN expressionList
     @Override
     public Void visitConstSpecification(Go_Parser.ConstSpecificationContext ctx) {
-        // Extrair informações da constante diretamente do contexto
-        List<String> constNames = extractIdentifierNames(ctx);
-        String typeInfo = extractTypeInfo(ctx);
+        System.out.println("DEBUG: ConstSpec");
 
-        int lineNumber = 1; // default
+        // Extrair typeSpec
+        String typeSpec;
         try {
-            if (ctx.identifierList() != null) {
-                // Usar reflexão simplificada para pegar start token
-                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-                if (startToken != null) {
-                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-                }
-            }
+            Method getTextMethod = ctx.typeSpec().getClass().getMethod("getText");
+            typeSpec = (String) getTextMethod.invoke(ctx.typeSpec());
         } catch (Exception e) {
-            lineNumber = 1;
+            typeSpec = "unknown";
+        }
+        System.out.println("DEBUG: typeSpec = " + typeSpec);
+
+        // Extrair identifierLIst
+        String[] identifiers = ctx.identifierList().getText().split(",");
+        for (String id : identifiers) {
+            System.out.println("DEBUG: identifier = " + id.trim());
         }
 
+        // Extrair número da linha
+        int lineNumber = 1; // default
+        try {
+            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+            System.out.println("DEBUG: lineNumber = " + lineNumber);
+        } catch (Exception e) {
+            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
+        }
+
+
         // Processar cada constante
-        for (String constName : constNames) {
-            if (constName != null && !constName.isEmpty()) {
-                GoType constType = GoType.fromString(typeInfo);
-                
+        for (String id : identifiers) {
+            if (id != null && !id.isEmpty()) {
+                GoType constType = GoType.fromString(typeSpec);
+
                 // Tentar adicionar a constante à tabela
-                if (!varTable.addConstant(constName, constType, lineNumber)) {
-                    VarEntry existing = varTable.lookup(constName);
-                    if (existing != null && varTable.existsInCurrentScope(constName)) {
-                        reportSemanticError(ctx, 
-                            "constant '" + constName + "' already declared at line " + existing.getDeclarationLine());
+                if (!varTable.addConstant(id, constType, lineNumber)) {
+                    VarEntry existing = varTable.lookup(id);
+                    if (existing != null && varTable.existsInCurrentScope(id)) {
+                        reportSemanticError(ctx,
+                            "constant '" + id + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
                     // Adicionar à lista de variáveis processadas para o relatório
-                    VarEntry constEntry = varTable.lookup(constName);
+                    VarEntry constEntry = varTable.lookup(id);
                     if (constEntry != null) {
                         allProcessedVariables.add(constEntry);
                     }
                     
                     // Adicionar também à tabela de tipos para referência
-                    typeTable.addVariable(constName, constType);
+                    typeTable.addVariable(id, constType);
                     
                     // Se for um array, adicionar à ArrayTable
-                    processArrayDeclaration(constName, typeInfo, lineNumber);
+                    processArrayDeclaration(id, typeSpec, lineNumber);
                 }
             }
         }
@@ -171,49 +179,58 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     @Override
     public Void visitVarSpecification(Go_Parser.VarSpecificationContext ctx) {
-        // Extrair informações da variável diretamente do contexto
-        List<String> varNames = extractIdentifierNames(ctx);
-        String typeInfo = extractTypeInfo(ctx);
-        
+        System.out.println("DEBUG: VarSpec");
+
+        // Extrair typeSpec
+        String typeSpec = "unknown";
+        try {
+            Method getTextMethod = ctx.typeSpec().getClass().getMethod("getText");
+            typeSpec = (String) getTextMethod.invoke(ctx.typeSpec());
+        } catch (Exception e) {
+            typeSpec = "unknown";
+        }
+        System.out.println("DEBUG: typeSpec = " + typeSpec);
+
+        // Extrair identifierLIst
+        String[] identifiers = ctx.identifierList().getText().split(",");
+        for (String id : identifiers) {
+            System.out.println("DEBUG: identifier = " + id.trim());
+        }
+
+        // Extrair número da linha
         int lineNumber = 1; // default
         try {
-            if (ctx.identifierList() != null) {
-                // Usar reflexão simplificada para pegar start token
-                Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-                if (startToken != null) {
-                    lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-                }
-            }
+            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
+            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
+            System.out.println("DEBUG: lineNumber = " + lineNumber);
         } catch (Exception e) {
-            lineNumber = 1; // fallback se falhar
+            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
         }
         
         // Processar cada variável
-        for (String varName : varNames) {
-            if (varName != null && !varName.isEmpty()) {
-                GoType varType = GoType.fromString(typeInfo);
-                
+        for (String id : identifiers) {
+            if (id != null && !id.isEmpty()) {
+                GoType varType = GoType.fromString(typeSpec);
+
                 // Tentar adicionar a variável à tabela
-                boolean added = varTable.addVariable(varName, varType, lineNumber);
-                
-                if (!added) {
-                    VarEntry existing = varTable.lookup(varName);
-                    if (existing != null && varTable.existsInCurrentScope(varName)) {
+                if (!varTable.addVariable(id, varType, lineNumber)) {
+                    VarEntry existing = varTable.lookup(id);
+                    if (existing != null && varTable.existsInCurrentScope(id)) {
                         reportSemanticError(
-                            "variable '" + varName + "' already declared at line " + existing.getDeclarationLine());
+                            "variable '" + id + "' already declared at line " + existing.getDeclarationLine());
                     }
                 } else {
                     // Adicionar à lista de variáveis processadas para o relatório
-                    VarEntry varEntry = varTable.lookup(varName);
+                    VarEntry varEntry = varTable.lookup(id);
                     if (varEntry != null) {
                         allProcessedVariables.add(varEntry);
                     }
                     
                     // Adicionar também à tabela de tipos para referência
-                    typeTable.addVariable(varName, varType);
+                    typeTable.addVariable(id, varType);
                     
                     // Se for um array, adicionar à ArrayTable
-                    processArrayDeclaration(varName, typeInfo, lineNumber);
+                    processArrayDeclaration(id, typeSpec, lineNumber);
                 }
             }
         }
@@ -300,58 +317,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
         
         return null;
-    }
-
-    /**
-     * Extrai nomes de identificadores usando contexto direto
-     */
-    private List<String> extractIdentifierNames(Object ctx) {
-        List<String> names = new ArrayList<>();
-        
-        if (ctx instanceof Go_Parser.ConstSpecificationContext) {
-            Go_Parser.ConstSpecificationContext constCtx = (Go_Parser.ConstSpecificationContext) ctx;
-            if (constCtx.identifierList() != null) {
-                String idListText = getTerminalText(constCtx.identifierList());
-                if (idListText != null && !idListText.isEmpty()) {
-                    String[] ids = idListText.split(",");
-                    for (String id : ids) {
-                        names.add(id.trim());
-                    }
-                }
-            }
-        } else if (ctx instanceof Go_Parser.VarSpecificationContext) {
-            Go_Parser.VarSpecificationContext varCtx = (Go_Parser.VarSpecificationContext) ctx;
-            if (varCtx.identifierList() != null) {
-                String idListText = getTerminalText(varCtx.identifierList());
-                if (idListText != null && !idListText.isEmpty()) {
-                    String[] ids = idListText.split(",");
-                    for (String id : ids) {
-                        names.add(id.trim());
-                    }
-                }
-            }
-        }
-        
-        return names;
-    }
-
-    /**
-     * Extrai informação de tipo usando contexto direto
-     */
-    private String extractTypeInfo(Object ctx) {
-        if (ctx instanceof Go_Parser.ConstSpecificationContext) {
-            Go_Parser.ConstSpecificationContext constCtx = (Go_Parser.ConstSpecificationContext) ctx;
-            if (constCtx.typeSpec() != null) {
-                return getTypeText(constCtx.typeSpec());
-            }
-        } else if (ctx instanceof Go_Parser.VarSpecificationContext) {
-            Go_Parser.VarSpecificationContext varCtx = (Go_Parser.VarSpecificationContext) ctx;
-            if (varCtx.typeSpec() != null) {
-                return getTypeText(varCtx.typeSpec());
-            }
-        }
-        
-        return "unknown";
     }
 
     /**

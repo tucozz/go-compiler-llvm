@@ -6,13 +6,7 @@ options {
 
 // === PROGRAM STRUCTURE ===
 program: 
-    (declaration | functionDeclaration)* EOF                               #ProgramRule
-;
-
-// === DECLARATIONS ===
-declaration:
-    constDeclaration                                                        #ConstDeclarationStmt
-    | varDeclaration                                                        #VarDeclarationStmt
+    (statement)* EOF                                #ProgramRule
 ;
 
 constDeclaration:
@@ -83,14 +77,16 @@ typeSpec:
 ;
 
 statement:
-    declaration                                                             #DeclarationStatement
-    | simpleStmt                                                            #SimpleStatement
-    | ifStmt                                                                #IfStatement
-    | forStmt                                                               #ForStatement
-    | returnStmt                                                            #ReturnStatement
-    | breakStmt                                                             #BreakStatement
-    | continueStmt                                                          #ContinueStatement
-    | block                                                                 #BlockStatement
+    constDeclaration
+    | varDeclaration
+    | functionDeclaration
+    | simpleStmt    
+    | ifStmt        
+    | forStmt       
+    | returnStmt    
+    | breakStmt     
+    | continueStmt  
+    | block         
 ;
 
 // === SIMPLE STATEMENTS ===
