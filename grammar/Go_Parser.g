@@ -39,20 +39,12 @@ signature:
     parameters result?                                                      #FunctionSignature
 ;
 
-parameter: 
-    ID typeSpec                                                             #ParameterDeclaration
-;
-parameterList: 
-    parameter (COMMA parameter)*                                            #ParamList
-;
-
 parameters:
-    PAR_INT (parameterList)? PAR_END                                        #ParametersDeclaration
+    PAR_INT (ID typeSpec (COMMA ID typeSpec)*)? PAR_END                     #ParametersDeclaration
 ;
 
 result:
     typeSpec                                                                #ResultSingleType
-    | parameters                                                            #ResultParameters
 ;
 
 typeSpec:

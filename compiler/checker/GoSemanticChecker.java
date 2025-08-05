@@ -14,6 +14,7 @@ import compiler.typing.TypeTable;
 import java.util.List;
 import java.util.ArrayList;
 import java.lang.reflect.Method;
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
@@ -349,112 +350,112 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      * Extrai parâmetros de função usando contexto ANTLR direto
      * Baseado no código de referência GoSemanticAnalyzer
      */
-    private java.util.List<String> extractParameterNames(Go_Parser.FunctionDeclContext ctx) {
-        java.util.List<String> parameters = new java.util.ArrayList<>();
+    // private java.util.List<String> extractParameterNames(Go_Parser.FunctionDeclContext ctx) {
+    //     java.util.List<String> parameters = new java.util.ArrayList<>();
         
-        // Acessar signature -> parameters -> parameterList -> parameter
-        if (ctx.signature() != null) {
-            Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
+    //     // Acessar signature -> parameters -> parameterList -> parameter
+    //     if (ctx.signature() != null) {
+    //         Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
             
-            if (funcSig.parameters() != null) {
-                Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
+    //         if (funcSig.parameters() != null) {
+    //             Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
                 
-                if (paramsCtx.parameterList() != null) {
-                    Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
+    //             if (paramsCtx.parameterList() != null) {
+    //                 Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
                     
-                    for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
-                        Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
-                        String paramName = getTerminalText(paramDeclCtx.ID());
-                        parameters.add(paramName);
-                    }
-                }
-            }
-        }
+    //                 for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
+    //                     Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
+    //                     String paramName = getTerminalText(paramDeclCtx.ID());
+    //                     parameters.add(paramName);
+    //                 }
+    //             }
+    //         }
+    //     }
         
-        return parameters;
-    }
+    //     return parameters;
+    // }
     
-    /**
-     * Extrai nome do parâmetro de uma string como "nint" -> "n" ou "arr[]int" -> "arr"
-     */
-    private String extractNameFromParam(String param) {
-        if (param == null || param.isEmpty()) return "";
+    // /**
+    //  * Extrai nome do parâmetro de uma string como "nint" -> "n" ou "arr[]int" -> "arr"
+    //  */
+    // private String extractNameFromParam(String param) {
+    //     if (param == null || param.isEmpty()) return "";
         
-        // Casos comuns de tipos Go (verificar []types primeiro)
-        String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
+    //     // Casos comuns de tipos Go (verificar []types primeiro)
+    //     String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
         
-        for (String type : goTypes) {
-            if (param.endsWith(type)) {
-                String name = param.substring(0, param.length() - type.length());
-                // Remover [] extras se presente no nome
-                if (name.endsWith("[]")) {
-                    name = name.substring(0, name.length() - 2);
-                }
-                if (!name.isEmpty()) {
-                    return name;
-                }
-            }
-        }
+    //     for (String type : goTypes) {
+    //         if (param.endsWith(type)) {
+    //             String name = param.substring(0, param.length() - type.length());
+    //             // Remover [] extras se presente no nome
+    //             if (name.endsWith("[]")) {
+    //                 name = name.substring(0, name.length() - 2);
+    //             }
+    //             if (!name.isEmpty()) {
+    //                 return name;
+    //             }
+    //         }
+    //     }
         
-        // Se não conseguiu extrair pelo sufixo, tentar por análise de caracteres
-        // Procurar primeira sequência de letras minúsculas como nome
-        for (int i = 1; i < param.length(); i++) {
-            char c = param.charAt(i);
-            if (Character.isUpperCase(c) || c == '[' || Character.isDigit(c)) {
-                return param.substring(0, i);
-            }
-        }
+    //     // Se não conseguiu extrair pelo sufixo, tentar por análise de caracteres
+    //     // Procurar primeira sequência de letras minúsculas como nome
+    //     for (int i = 1; i < param.length(); i++) {
+    //         char c = param.charAt(i);
+    //         if (Character.isUpperCase(c) || c == '[' || Character.isDigit(c)) {
+    //             return param.substring(0, i);
+    //         }
+    //     }
         
-        // Fallback: usar a string inteira
-        return param;
-    }
+    //     // Fallback: usar a string inteira
+    //     return param;
+    // }
 
-    /**
-     * Extrai tipos de parâmetros usando contexto ANTLR direto
-     */
-    private java.util.List<String> extractParameterTypes(Go_Parser.FunctionDeclContext ctx) {
-        java.util.List<String> types = new java.util.ArrayList<>();
+    // /**
+    //  * Extrai tipos de parâmetros usando contexto ANTLR direto
+    //  */
+    // private java.util.List<String> extractParameterTypes(Go_Parser.FunctionDeclContext ctx) {
+    //     java.util.List<String> types = new java.util.ArrayList<>();
         
-        // Mesma estrutura que extractParameterNames, mas pega os tipos
-        if (ctx.signature() != null) {
-            Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
+    //     // Mesma estrutura que extractParameterNames, mas pega os tipos
+    //     if (ctx.signature() != null) {
+    //         Go_Parser.FunctionSignatureContext funcSig = (Go_Parser.FunctionSignatureContext) ctx.signature();
             
-            if (funcSig.parameters() != null) {
-                Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
+    //         if (funcSig.parameters() != null) {
+    //             Go_Parser.ParametersDeclarationContext paramsCtx = (Go_Parser.ParametersDeclarationContext) funcSig.parameters();
                 
-                if (paramsCtx.parameterList() != null) {
-                    Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
+    //             if (paramsCtx.parameterList() != null) {
+    //                 Go_Parser.ParamListContext paramListCtx = (Go_Parser.ParamListContext) paramsCtx.parameterList();
                     
-                    for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
-                        Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
-                        String paramType = getTerminalText(paramDeclCtx.typeSpec());
-                        types.add(paramType);
-                    }
-                }
-            }
-        }
+    //                 for (Go_Parser.ParameterContext paramCtx : paramListCtx.parameter()) {
+    //                     Go_Parser.ParameterDeclarationContext paramDeclCtx = (Go_Parser.ParameterDeclarationContext) paramCtx;
+    //                     String paramType = getTerminalText(paramDeclCtx.typeSpec());
+    //                     types.add(paramType);
+    //                 }
+    //             }
+    //         }
+    //     }
         
-        return types;
-    }
+    //     return types;
+    // }
     
-    /**
-     * Extrai tipo do parâmetro de uma string como "nint" -> "int" ou "arr[]int" -> "[]int"
-     */
-    private String extractTypeFromParam(String param) {
-        if (param == null || param.isEmpty()) return "unknown";
+    // /**
+    //  * Extrai tipo do parâmetro de uma string como "nint" -> "int" ou "arr[]int" -> "[]int"
+    //  */
+    // private String extractTypeFromParam(String param) {
+    //     if (param == null || param.isEmpty()) return "unknown";
         
-        // Casos comuns de tipos Go
-        String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
+    //     // Casos comuns de tipos Go
+    //     String[] goTypes = {"[]int", "[]string", "[]bool", "int", "string", "bool", "float64"};
         
-        for (String type : goTypes) {
-            if (param.endsWith(type)) {
-                return type;
-            }
-        }
+    //     for (String type : goTypes) {
+    //         if (param.endsWith(type)) {
+    //             return type;
+    //         }
+    //     }
         
-        // Se não conseguiu extrair pelo sufixo, retornar unknown
-        return "unknown";
-    }
+    //     // Se não conseguiu extrair pelo sufixo, retornar unknown
+    //     return "unknown";
+    // }
 
     /**
      * Converte string de tipo para GoType
@@ -515,15 +516,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
-        String functionName = getTerminalText(ctx.ID());
+        String functionName = ctx.ID().toString();
 
-        // Extrair parâmetros da função
-        java.util.List<String> paramNames = extractParameterNames(ctx);
-        java.util.List<String> paramTypeNames = extractParameterTypes(ctx);
-        
-        // Extrair tipo de retorno da função
-        String returnTypeName = extractReturnType(ctx);
-        
         // Verificar se a função já foi declarada
         if (functionTable.hasFunction(functionName)) {
             reportSemanticError(
@@ -533,68 +527,105 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         
         // Criar novo escopo para a função
         varTable.enterScope();
-        
-        // Converter nomes de tipos para GoType
-        List<String> paramNamesJava = new ArrayList<>();
-        List<GoType> paramTypes = new ArrayList<>();
-        GoType returnType = convertStringToGoType(returnTypeName);
-        
-        // Rastrear função atual para validação de returns
-        currentFunctionName = functionName;
-        currentFunctionReturnType = returnType;
-        
-        for (String paramName : paramNames) {
-            paramNamesJava.add(paramName);
+
+        // Extrair parâmetros da função
+        Go_Parser.FunctionSignatureContext signature = (Go_Parser.FunctionSignatureContext) ctx.signature();
+        Go_Parser.ParametersDeclarationContext paramsDecl = (Go_Parser.ParametersDeclarationContext) signature.parameters();
+
+        // IDs dos parâmetros
+        List<TerminalNode> idNodes = paramsDecl.ID();
+        List<String> paramNames = new ArrayList<>();
+        for (TerminalNode idNode : idNodes) {
+            paramNames.add(idNode.getText());
         }
+        System.out.println("DEBUG: ID Nodes = " + idNodes);
         
-        for (String typeName : paramTypeNames) {
-            GoType goType = convertStringToGoType(typeName);
-            paramTypes.add(goType);
+        // Tipos dos parâmetros
+        List<String> paramTypeNames = new ArrayList<>();
+        for (Go_Parser.TypeSpecContext typeNode : paramsDecl.typeSpec()) {
+            paramTypeNames.add(getTypeText(typeNode));
         }
-        
-        // Adicionar parâmetros como variáveis locais no escopo da função
-        int functionLineNumber = 1; // Default fallback for function declarations
-        for (int i = 0; i < paramNames.size(); i++) {
-            String paramName = paramNames.get(i);
-            String typeName = i < paramTypeNames.size() ? paramTypeNames.get(i) : "unknown";
-            GoType paramType = convertStringToGoType(typeName);
-            
-            if (!varTable.addVariable(paramName, paramType, functionLineNumber)) {
-                reportSemanticError("parameter '" + paramName + "' already declared");
-            } else {
-                // Adicionar parâmetros à lista de variáveis processadas para o relatório
-                VarEntry paramEntry = varTable.lookup(paramName);
-                if (paramEntry != null) {
-                    allProcessedVariables.add(paramEntry);
-                }
-                
-                // Se for um array, adicionar também à ArrayTable
-                if (ArrayTable.isArrayType(typeName)) {
-                    ArrayInfo arrayInfo = ArrayTable.parseArrayType(typeName);
-                    if (arrayInfo != null) {
-                        arrayTable.addArray(paramName, arrayInfo.getElementType(), arrayInfo.getSize(), functionLineNumber);
-                    }
-                }
+        System.out.println("DEBUG: Parameter Types = " + paramTypeNames);
+
+        // Retorno da função
+        GoType returnType = GoType.VOID; // Default se não especificado
+
+        Go_Parser.ResultContext result = signature.result();
+        if(result != null) {
+            if (result instanceof Go_Parser.ResultSingleTypeContext) { // Tipo único de retorno
+                returnType = convertStringToGoType(result.getText());
+                System.out.println("DEBUG: Return Type = " + returnType);
+
             }
         }
+
+    
+        // // Extrair tipo de retorno da função
+        // String returnTypeName = extractReturnType(ctx);
         
-        // Adicionar função à tabela com tipo de retorno correto
-        if (!functionTable.addFunction(functionName, paramNamesJava, paramTypes, returnType, 0)) {
-            reportSemanticError("Failed to add function '" + functionName + "'");
-        } else {
-            // Marcar como definida (já que tem corpo)
-            functionTable.markAsDefined(functionName);
-        }
         
-        // Processar corpo da função (delegar aos visitadores padrão)
-        super.visitFunctionDecl(ctx);
         
-        // Sair do escopo da função
-        varTable.exitScope();
+        // // Converter nomes de tipos para GoType
+        // List<String> paramNamesJava = new ArrayList<>();
+        // List<GoType> paramTypes = new ArrayList<>();
+        // GoType returnType = convertStringToGoType(returnTypeName);
         
-        // Limpar rastreamento da função atual
-        currentFunctionName = null;
-        currentFunctionReturnType = null;
+        // // Rastrear função atual para validação de returns
+        // currentFunctionName = functionName;
+        // currentFunctionReturnType = returnType;
+        
+        // for (String paramName : paramNames) {
+        //     paramNamesJava.add(paramName);
+        // }
+        
+        // for (String typeName : paramTypeNames) {
+        //     GoType goType = convertStringToGoType(typeName);
+        //     paramTypes.add(goType);
+        // }
+        
+        // // Adicionar parâmetros como variáveis locais no escopo da função
+        // int functionLineNumber = 1; // Default fallback for function declarations
+        // for (int i = 0; i < paramNames.size(); i++) {
+        //     String paramName = paramNames.get(i);
+        //     String typeName = i < paramTypeNames.size() ? paramTypeNames.get(i) : "unknown";
+        //     GoType paramType = convertStringToGoType(typeName);
+            
+        //     if (!varTable.addVariable(paramName, paramType, functionLineNumber)) {
+        //         reportSemanticError("parameter '" + paramName + "' already declared");
+        //     } else {
+        //         // Adicionar parâmetros à lista de variáveis processadas para o relatório
+        //         VarEntry paramEntry = varTable.lookup(paramName);
+        //         if (paramEntry != null) {
+        //             allProcessedVariables.add(paramEntry);
+        //         }
+                
+        //         // Se for um array, adicionar também à ArrayTable
+        //         if (ArrayTable.isArrayType(typeName)) {
+        //             ArrayInfo arrayInfo = ArrayTable.parseArrayType(typeName);
+        //             if (arrayInfo != null) {
+        //                 arrayTable.addArray(paramName, arrayInfo.getElementType(), arrayInfo.getSize(), functionLineNumber);
+        //             }
+        //         }
+        //     }
+        // }
+        
+        // // Adicionar função à tabela com tipo de retorno correto
+        // if (!functionTable.addFunction(functionName, paramNamesJava, paramTypes, returnType, 0)) {
+        //     reportSemanticError("Failed to add function '" + functionName + "'");
+        // } else {
+        //     // Marcar como definida (já que tem corpo)
+        //     functionTable.markAsDefined(functionName);
+        // }
+        
+        // // Processar corpo da função (delegar aos visitadores padrão)
+        // super.visitFunctionDecl(ctx);
+        
+        // // Sair do escopo da função
+        // varTable.exitScope();
+        
+        // // Limpar rastreamento da função atual
+        // currentFunctionName = null;
+        // currentFunctionReturnType = null;
         
         return null;
     }
