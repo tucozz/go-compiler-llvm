@@ -15,6 +15,7 @@ import compiler.tables.StrTable.StrEntry;
 import compiler.typing.GoType;
 import compiler.typing.TypeTable;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.antlr.v4.runtime.tree.ParseTree; // Import adicionado
 
 import java.util.ArrayList;
 import java.util.List;
@@ -116,6 +117,53 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
             }
         }
         return varListNode;
+    }
+    
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitShortVariableDecl(Go_Parser.ShortVariableDeclContext ctx) {
+        AST shortAssignNode = new AST(NodeKind.SHORT_ASSIGN_NODE, GoType.NO_TYPE);
+        
+        List<AST> rvalues = new ArrayList<>();
+        
+        // CORREÇÃO: Abordagem robusta para iterar sobre a lista de expressões.
+        // Em vez de adivinhar o nome do método, inspecionamos os filhos do nó.
+        Go_Parser.ExpressionListContext exprListCtx = ctx.expressionList();
+        if (exprListCtx != null) {
+            for (int i = 0; i < exprListCtx.getChildCount(); i++) {
+                ParseTree child = exprListCtx.getChild(i);
+                // Adicionamos à lista apenas se o filho for um nó de expressão (ignorando vírgulas)
+                if (child instanceof Go_Parser.ExprContext) {
+                    rvalues.add(visit(child));
+                }
+            }
+        }
+
+        String[] identifiers = ctx.identifierList().getText().split(",");
+        if (identifiers.length != rvalues.size()) {
+            reportSemanticError("Assignment mismatch: " + identifiers.length + " variables but " + rvalues.size() + " values");
+            return null;
+        }
+
+        for (int i = 0; i < identifiers.length; i++) {
+            String varName = identifiers[i].trim();
+            AST rvalueNode = rvalues.get(i);
+            // Inferencia de tipo a partir da expressão da direita
+            GoType inferredType = rvalueNode.type;
+            int line = ctx.getStart().getLine();
+
+            // Cria um nó de uso de variável para o lado esquerdo
+            AST lvalueNode = new AST(NodeKind.VAR_USE_NODE, varName, inferredType);
+
+            if (!varTable.addVariable(varName, inferredType, line)) {
+                 reportSemanticError("Variable '" + varName + "' already declared in this scope.");
+            }
+
+            shortAssignNode.addChild(lvalueNode);
+            shortAssignNode.addChild(rvalueNode);
+        }
+
+        return shortAssignNode;
     }
     
     // --- ATRIBUIÇÕES ---
@@ -230,7 +278,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return AST.newSubtree(NodeKind.OR_NODE, GoType.BOOL, left, right);
     }
     
-    // NOVO MÉTODO IMPLEMENTADO
     @Override
     public AST visitUnaryPrefixExpr(Go_Parser.UnaryPrefixExprContext ctx) {
         AST operand = visit(ctx.expr());
@@ -351,6 +398,83 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return AST.newSubtree(NodeKind.IF_NODE, GoType.NO_TYPE, condition, thenBlock, elseBlock);
     }
     
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitForLoopStatement(Go_Parser.ForLoopStatementContext ctx) {
+        loopDepth++; // Entra em um nível de loop
+        varTable.enterScope(); // 'for' cria seu próprio escopo
+        
+        AST forNode = new AST(NodeKind.FOR_NODE, GoType.NO_TYPE);
+
+        // O 'for' de Go pode ter várias formas.
+        // Forma 1: for com cláusula (for i := 0; i < 10; i++)
+        if (ctx.forClause() != null) {
+            forNode.addChild(visit(ctx.forClause()));
+        } 
+        // Forma 2: for com condição (for x < 10)
+        else if (ctx.expr() != null) {
+            AST condition = visit(ctx.expr());
+            if (condition.type != GoType.BOOL) {
+                reportSemanticError("For condition must be boolean, but got " + condition.type);
+            }
+            forNode.addChild(condition);
+        }
+        // Forma 3: for infinito (for {}) - não precisa de filho para condição
+
+        // O corpo do loop sempre existe
+        forNode.addChild(visit(ctx.block()));
+        
+        varTable.exitScope();
+        loopDepth--; // Sai do nível de loop
+        return forNode;
+    }
+
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitReturnStatement(Go_Parser.ReturnStatementContext ctx) {
+        // Checagem semântica: 'return' só pode estar dentro de uma função
+        if (currentFunctionName == null) {
+            reportSemanticError("Return statement outside of a function.");
+            return null; // Retorna null para indicar erro grave
+        }
+        AST returnNode = new AST(NodeKind.RETURN_NODE, GoType.NO_TYPE);
+        GoType actualReturnType = GoType.VOID;
+
+        if (ctx.expr() != null) {
+            AST exprNode = visit(ctx.expr());
+            actualReturnType = exprNode.type;
+            returnNode.addChild(exprNode);
+        }
+
+        // Checagem semântica: tipo de retorno deve ser compatível com o da função
+        // (Ainda não implementamos funções, então currentFunctionReturnType será null por enquanto)
+        if (currentFunctionReturnType != null && !actualReturnType.isCompatibleWith(currentFunctionReturnType)) {
+            reportSemanticError("Return type mismatch: function '" + currentFunctionName + "' expects " 
+                + currentFunctionReturnType + " but got " + actualReturnType);
+        }
+        return returnNode;
+    }
+
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitBreakStatementRule(Go_Parser.BreakStatementRuleContext ctx) {
+        // Checagem semântica: 'break' só pode estar dentro de um loop
+        if (loopDepth == 0) {
+            reportSemanticError("Break statement not within a loop.");
+        }
+        return new AST(NodeKind.BREAK_NODE, GoType.NO_TYPE);
+    }
+
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitContinueStatementRule(Go_Parser.ContinueStatementRuleContext ctx) {
+        // Checagem semântica: 'continue' só pode estar dentro de um loop
+        if (loopDepth == 0) {
+            reportSemanticError("Continue statement not within a loop.");
+        }
+        return new AST(NodeKind.CONTINUE_NODE, GoType.NO_TYPE);
+    }
+
     // --- MÉTODO DE RELATÓRIO ---
     public void printReport() {
         System.out.println("\n=== RELATÓRIO DA ANÁLISE SEMÂNTICA ===");
