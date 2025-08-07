@@ -11,10 +11,10 @@ import compiler.tables.FunctionTable;
 import compiler.tables.StrTable;
 import compiler.tables.VarTable;
 import compiler.tables.VarTable.VarEntry;
-import compiler.tables.StrTable.StrEntry; // Import adicionado
+import compiler.tables.StrTable.StrEntry;
 import compiler.typing.GoType;
 import compiler.typing.TypeTable;
-import org.antlr.v4.runtime.tree.TerminalNode; // Import adicionado
+import org.antlr.v4.runtime.tree.TerminalNode;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -205,7 +205,67 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
 
         return AST.newSubtree(kind, GoType.BOOL, left, right);
     }
+
+    @Override
+    public AST visitLogicalANDExpr(Go_Parser.LogicalANDExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        if (left.type != GoType.BOOL || right.type != GoType.BOOL) {
+            reportSemanticError("Logical AND (&&) operator requires boolean operands, but got " + left.type + " and " + right.type);
+        }
+
+        return AST.newSubtree(NodeKind.AND_NODE, GoType.BOOL, left, right);
+    }
     
+    @Override
+    public AST visitLogicalORExpr(Go_Parser.LogicalORExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        if (left.type != GoType.BOOL || right.type != GoType.BOOL) {
+            reportSemanticError("Logical OR (||) operator requires boolean operands, but got " + left.type + " and " + right.type);
+        }
+
+        return AST.newSubtree(NodeKind.OR_NODE, GoType.BOOL, left, right);
+    }
+    
+    // NOVO MÉTODO IMPLEMENTADO
+    @Override
+    public AST visitUnaryPrefixExpr(Go_Parser.UnaryPrefixExprContext ctx) {
+        AST operand = visit(ctx.expr());
+        String op = ctx.getChild(0).getText();
+        NodeKind kind;
+        GoType resultType = operand.type;
+
+        switch(op) {
+            case "+":
+                kind = NodeKind.UNARY_PLUS_NODE;
+                if (!operand.type.isNumeric()) {
+                    reportSemanticError("Unary plus operator (+) requires a numeric operand, but got " + operand.type);
+                    resultType = GoType.UNKNOWN;
+                }
+                break;
+            case "-":
+                kind = NodeKind.UNARY_MINUS_NODE;
+                if (!operand.type.isNumeric()) {
+                    reportSemanticError("Unary minus operator (-) requires a numeric operand, but got " + operand.type);
+                    resultType = GoType.UNKNOWN;
+                }
+                break;
+            case "!":
+                kind = NodeKind.NOT_NODE;
+                if (operand.type != GoType.BOOL) {
+                    reportSemanticError("Logical NOT operator (!) requires a boolean operand, but got " + operand.type);
+                }
+                resultType = GoType.BOOL; // O resultado de '!' é sempre booleano
+                break;
+            default:
+                throw new IllegalStateException("Unknown unary operator: " + op);
+        }
+        return AST.newSubtree(kind, resultType, operand);
+    }
+
     @Override
     public AST visitParenthesizedExpr(Go_Parser.ParenthesizedExprContext ctx) {
         return visit(ctx.expr());
