@@ -136,15 +136,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
 
         // Extrair número da linha
-        int lineNumber = 1; // default
-        try {
-            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-            System.out.println("DEBUG: lineNumber = " + lineNumber);
-        } catch (Exception e) {
-            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
-            lineNumber = 1; // fallback se falhar
-        }
+        int lineNumber = ctx.start.getLine();
+        System.out.println("DEBUG: lineNumber = " + lineNumber);
 
         // Processar cada constante
         for (String id : identifiers) {
@@ -198,15 +191,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
 
         // Extrair número da linha
-        int lineNumber = 1; // default
-        try {
-            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-            System.out.println("DEBUG: lineNumber = " + lineNumber);
-        } catch (Exception e) {
-            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
-            lineNumber = 1; // fallback se falhar
-        }
+        int lineNumber = ctx.start.getLine();
+        System.out.println("DEBUG: lineNumber = " + lineNumber);
 
         // Processar cada variável
         for (String id : identifiers) {
@@ -254,15 +240,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
 
         // Extrair número da linha
-        int lineNumber = 1; // default
-        try {
-            Object startToken = ctx.identifierList().getClass().getMethod("getStart").invoke(ctx.identifierList());
-            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-            System.out.println("DEBUG: lineNumber = " + lineNumber);
-        } catch (Exception e) {
-            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
-            lineNumber = 1; // fallback se falhar
-        }
+        int lineNumber = ctx.start.getLine();
+        System.out.println("DEBUG: lineNumber = " + lineNumber);
 
         // Inferir tipo da expressão do lado direito
         String expressionList;
@@ -410,16 +389,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("DEBUG: Return Type = " + returnType);
 
         // Extrair número da linha da declaração da função
-        int lineNumber = 1; // default
-        try {
-            Object startToken = ctx.getClass().getMethod("getStart").invoke(ctx);
-            lineNumber = (Integer) startToken.getClass().getMethod("getLine").invoke(startToken);
-            System.out.println("DEBUG: lineNumber = " + lineNumber);
-        } catch (Exception e) {
-            System.out.println("DEBUG: Error getting line number: " + e.getMessage());
-            lineNumber = 1; // fallback se falhar
-        }
-        System.out.println("DEBUG: Line Number = " + lineNumber);
+        // Extrair número da linha
+        int lineNumber = ctx.start.getLine();
+        System.out.println("DEBUG: lineNumber = " + lineNumber);
 
         // Adicionar parâmetros como variáveis locais no escopo da função
         for (int i = 0; i < paramNames.size(); i++) {
