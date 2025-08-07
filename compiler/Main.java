@@ -7,63 +7,92 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.tree.ParseTree;
 
-// Imports para o lexer e parser ANTLR (pacote Go_Parser)
+// Imports para o lexer e parser ANTLR (gerados na pasta Go_Parser)
 import Go_Parser.Go_Lexer;
 import Go_Parser.Go_Parser;
 
+import compiler.ast.AST;
+import compiler.ast.ASTPrinter;
 import compiler.checker.GoSemanticChecker;
 
+/**
+ * Classe principal do compilador.
+ * Orquestra as fases de análise: léxica, sintática e semântica.
+ * Adicionada a funcionalidade de imprimir a AST para teste/visualização.
+ * * Uso: java compiler.Main <caminho_para_arquivo.go>
+ * * O programa termina com status 0 em caso de sucesso (nenhum erro semântico)
+ * e com status 1 caso contrário.
+ */
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         if (args.length == 0) {
-            System.err.println("Usage: java -cp <classpath> compiler.Main <input_file.go>");
-            System.err.println("Example: make test FILE=tests/arithmetics/test01/main.go");
+            System.err.println("Uso: java -cp <classpath> compiler.Main <arquivo_de_entrada.go>");
+            System.err.println("Exemplo: make test FILE=valid_tests/declarations/test1.go");
+            System.exit(1);
             return;
         }
 
         String filePath = args[0];
-        
-        System.out.println("Go Compiler - Análise Semântica com ANTLR");
-        System.out.println("Arquivo: " + filePath);
-        System.out.println();
-        
+        System.out.println(">>> Iniciando Compilador para o arquivo: " + filePath);
+        System.out.println("--------------------------------------------------");
+
         try {
-            // === 1. ANÁLISE LÉXICA ===
-            System.out.println("1. Análise Léxica...");
+            // 1. ANÁLISE LÉXICA E SINTÁTICA
             CharStream input = CharStreams.fromFileName(filePath);
             Go_Lexer lexer = new Go_Lexer(input);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
-            
-            // === 2. ANÁLISE SINTÁTICA ===
-            System.out.println("2. Análise Sintática...");
             Go_Parser parser = new Go_Parser(tokens);
-            ParseTree tree = parser.program(); // Regra inicial da gramática
             
-            // === 3. ANÁLISE SEMÂNTICA ===
-            System.out.println("3. Análise Semântica...");
-            GoSemanticChecker visitor = new GoSemanticChecker();
-            
-            // Visitar a árvore sintática com o visitor
-            visitor.visit(tree);
-            
-            // Imprimir relatório da análise
-            visitor.printReport();
-            
-            System.out.println("\n✅ Análise concluída!");
-            
-            // Verificar erros sintáticos
+            // CORREÇÃO: O método da regra inicial provavelmente é 'program()', não 'programRule()'.
+            ParseTree tree = parser.program(); 
+
             if (parser.getNumberOfSyntaxErrors() > 0) {
-                System.err.println("❌ Erros sintáticos encontrados!");
+                System.err.println("ERRO: Foram encontrados erros sintáticos. A compilação será interrompida.");
+                System.exit(1);
                 return;
             }
+            System.out.println("[FASE 1/2] Análise Sintática concluída com sucesso.");
+
+            // 2. ANÁLISE SEMÂNTICA
+            System.out.println("[FASE 2/2] Iniciando Análise Semântica...");
+            GoSemanticChecker semanticChecker = new GoSemanticChecker();
+            AST ast = semanticChecker.visit(tree);
             
-            System.out.println("✅ Parsing concluído com sucesso!");
-            System.out.println("Parse tree nodes: " + tree.getChildCount());
-            
-        } catch (Exception e) {
-            System.err.println("❌ Erro durante a análise: " + e.getMessage());
+            // Imprime o relatório de erros e tabelas
+            semanticChecker.printReport();
+
+            // Verifica se ocorreram erros semânticos
+            if (semanticChecker.hasSemanticErrors()) {
+                System.err.println("\nRESULTADO: Compilação falhou devido a erros semânticos.");
+                System.exit(1);
+            } else {
+                // 3. IMPRESSÃO DA AST
+                System.out.println("\n--------------------------------------------------");
+                System.out.println(">>> [FASE 3/3] Gerando Abstract Syntax Tree (AST)...");
+                if (ast != null) {
+                    System.out.println("Para visualizar a árvore, copie o código DOT abaixo");
+                    System.out.println("e cole em um visualizador como: https://dreampuf.github.io/GraphvizOnline/");
+                    System.out.println("\n--- INÍCIO DO CÓDIGO DOT ---");
+                    // Gera e imprime a representação da AST em formato DOT
+                    System.out.println(ASTPrinter.toDot(ast));
+                    System.out.println("--- FIM DO CÓDIGO DOT ---\n");
+                } else {
+                    System.out.println("A AST não foi gerada devido a erros anteriores.");
+                }
+
+                System.out.println("RESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado.");
+                System.exit(0);
+            }
+
+        } catch (IOException e) {
+            System.err.println("ERRO: Não foi possível ler o arquivo '" + filePath + "'.");
             e.printStackTrace();
+            System.exit(1);
+        } catch (Exception e) {
+            System.err.println("ERRO: Ocorreu um erro inesperado durante a compilação.");
+            e.printStackTrace();
+            System.exit(1);
         }
     }
 }
