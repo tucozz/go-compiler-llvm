@@ -13,6 +13,7 @@ import compiler.typing.GoType;
 import compiler.typing.TypeTable;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.lang.reflect.Method;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
@@ -222,6 +223,33 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             }
         }
 
+        if (ctx.expressionList() != null) {
+            // Extrair expressões individuais usando o parser ANTLR
+            Go_Parser.ExprListContext exprListContext = (Go_Parser.ExprListContext) ctx.expressionList();
+            List<Go_Parser.ExprContext> expressions = exprListContext.expr();
+
+            for (int i = 0; i < expressions.size() && i < identifiers.length; i++) {
+                String expr = expressions.get(i).getText().trim();
+                String varName = identifiers[i].trim();
+                GoType declaredType = GoType.fromString(typeSpec);
+
+                System.out.println(
+                        "DEBUG: Validating assignment: " + varName + " (" + declaredType.getTypeName() + ") = " + expr);
+
+                // Inferir tipo da expressão de inicialização
+                GoType exprType = inferArgumentType(expr);
+
+                // Verificar compatibilidade de tipos
+                if (!areTypesCompatible(exprType, declaredType)) {
+                    reportSemanticError("cannot assign " + exprType.getTypeName() +
+                            " to variable '" + varName + "' of type " + declaredType.getTypeName());
+                }
+            }
+
+            // Processar as expressões usando visitadores ANTLR (para validações mais profundas)
+            visit(ctx.expressionList());
+        }
+
         return null;
     }
 
@@ -244,13 +272,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("DEBUG: lineNumber = " + lineNumber);
 
         // Inferir tipo da expressão do lado direito
-        String expressionList;
-        try {
-            Method getTextMethod = ctx.expressionList().getClass().getMethod("getText");
-            expressionList = (String) getTextMethod.invoke(ctx.expressionList());
-        } catch (Exception e) {
-            expressionList = "unknown";
-        }
+        String expressionList = ctx.expressionList().getText();
         System.out.println("DEBUG: expressionList = " + expressionList);
 
         List<String> exprTypes = new ArrayList<>();
@@ -271,6 +293,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             String id = identifiers[i].trim();
             if (id != null && !id.isEmpty()) {
                 GoType varType = GoType.fromString(inferredType);
+                System.out.println("DEBUG: Adding short variable: " + id + " of type " + varType.getTypeName());
 
                 // Tentar adicionar a variável à tabela
                 if (!varTable.addVariable(id, varType, lineNumber)) {
@@ -342,7 +365,13 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
 
     @Override
     public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
-        String functionName = ctx.ID().toString();
+        // Verificar se há erro sintático (ID pode ser null)
+        if (ctx.ID() == null) {
+            reportSemanticError("invalid function declaration - missing function name");
+            return null;
+        }
+        
+        String functionName = getTerminalText(ctx.ID());
         currentFunctionName = functionName;
 
         // Verificar se a função já foi declarada
