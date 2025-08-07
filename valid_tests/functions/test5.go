@@ -1,3 +1,14 @@
+func calculate(a int, b int) int {
+    var sum int = a + b
+    var product int = a * b
+    
+    if sum > product {
+        return sum
+    } else {
+        return product
+    }
+}
+
 func main() {
     // Declarações básicas
     var count int = 0
@@ -35,13 +46,3 @@ func main() {
     var result int = calculate(5, 3)
 }
 
-func calculate(a int, b int) int {
-    var sum int = a + b
-    var product int = a * b
-    
-    if sum > product {
-        return sum
-    } else {
-        return product
-    }
-}

@@ -121,12 +121,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("DEBUG: ConstSpec");
 
         // Extrair typeSpec
-        String typeSpec;
-        try {
-            Method getTextMethod = ctx.typeSpec().getClass().getMethod("getText");
-            typeSpec = (String) getTextMethod.invoke(ctx.typeSpec());
-        } catch (Exception e) {
-            typeSpec = "unknown";
+        String typeSpec = "unknown";
+        if (ctx.typeSpec() != null) {
+            typeSpec = ctx.typeSpec().getText();
         }
         System.out.println("DEBUG: typeSpec = " + typeSpec);
 
@@ -176,13 +173,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("DEBUG: VarSpec");
 
         // Extrair typeSpec
-        String typeSpec = "unknown";
-        try {
-            Method getTextMethod = ctx.typeSpec().getClass().getMethod("getText");
-            typeSpec = (String) getTextMethod.invoke(ctx.typeSpec());
-        } catch (Exception e) {
-            typeSpec = "unknown";
-        }
+        String typeSpec = ctx.typeSpec().getText();
         System.out.println("DEBUG: typeSpec = " + typeSpec);
 
         // Extrair identifierLIst
@@ -246,7 +237,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
                 }
             }
 
-            // Processar as expressões usando visitadores ANTLR (para validações mais profundas)
+            // Processar as expressões usando visitadores ANTLR (para validações mais
+            // profundas)
             visit(ctx.expressionList());
         }
 
@@ -370,8 +362,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
             reportSemanticError("invalid function declaration - missing function name");
             return null;
         }
-        
-        String functionName = getTerminalText(ctx.ID());
+
+        String functionName = ctx.ID().getText();
         currentFunctionName = functionName;
 
         // Verificar se a função já foi declarada
@@ -516,7 +508,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     @Override
     public Void visitCallExpression(Go_Parser.CallExpressionContext ctx) {
-        String functionName = getTerminalText(ctx.ID());
+        String functionName = ctx.ID().getText();
 
         // Se a função não existe, verificar se é built-in e adicioná-la
         if (!functionTable.hasFunction(functionName)) {
@@ -579,7 +571,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         java.util.List<String> arguments = new java.util.ArrayList<>();
 
         if (ctx != null && ctx.expressionList() != null) {
-            String argsText = getTerminalText(ctx.expressionList());
+            String argsText = ctx.expressionList().getText();
             if (argsText != null && !argsText.isEmpty()) {
                 // Parsing simples por vírgulas
                 String[] args = argsText.split(",");
@@ -766,8 +758,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         }
 
         // Extrair informações usando getText() e parsing simples
-        String fullLvalue = getTerminalText(ctx.lvalue());
-        String rvalue = getTerminalText(ctx.expr());
+        String fullLvalue = ctx.lvalue().getText();
+        String rvalue = ctx.expr().getText();
         String varName = null;
         boolean isArrayAccess = false;
         String indexExpr = null;
