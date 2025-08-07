@@ -1,11 +1,12 @@
-// Test 2: For loops
 func main() {
-    for i := 0; i < 10; i = i + 1 {
-        x := i * 2
-    }
+    var x int
+    x = 0
     
-    sum := 0
-    for sum < 100 {
-        sum = sum + 10
+    // For infinito com break
+    for {
+        x = x + 1
+        if x > 5 {
+            break
+        }
     }
 }

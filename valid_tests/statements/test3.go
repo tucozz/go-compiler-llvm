@@ -1,12 +1,20 @@
-// Test 4: Break and continue
 func main() {
-    for i := 0; i < 10; i = i + 1 {
-        if i == 3 {
-            continue
+    var x int
+    x = 0
+    
+    // For com condição simples
+    for x < 10 {
+        x = x + 1
+    }
+    
+    var running bool
+    running = true
+    
+    // For com variável booleana
+    for running {
+        x = x + 1
+        if x > 15 {
+            running = false
         }
-        if i == 7 {
-            break
-        }
-        x := i
     }
 }

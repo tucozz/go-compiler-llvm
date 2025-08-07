@@ -110,15 +110,11 @@ ifStmt:
 ;
 
 forStmt:
-    FOR (forClause | forRangeClause | expr)? block                          #ForLoopStatement
+    FOR (forClause | expr)? block                          #ForLoopStatement
 ;
 
 forClause:
-    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt?                       #ForClassicClause
-;
-
-forRangeClause:
-    (ID (COMMA ID)?) S_ASSIGN RANGE expr                                    #ForRangeClauseExpr
+    simpleStmt? SEMICOLON expr? SEMICOLON simpleStmt?                       #ForClauseRule
 ;
 
 returnStmt: 
