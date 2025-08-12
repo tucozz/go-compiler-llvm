@@ -546,7 +546,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         // Se agora a função existe, validar argumentos
         if (functionTable.hasFunction(functionName)) {
             // Extrair argumentos da chamada
-            java.util.List<String> arguments = extractCallArguments(ctx);
+            List<String> arguments = extractCallArguments(ctx);
 
             // Validar número de argumentos
             FunctionInfo funcInfo = functionTable.getFunction(functionName);
@@ -591,8 +591,8 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     /**
      * Extrai argumentos de uma chamada de função usando parsing simples
      */
-    private java.util.List<String> extractCallArguments(Go_Parser.CallExpressionContext ctx) {
-        java.util.List<String> arguments = new java.util.ArrayList<>();
+    private List<String> extractCallArguments(Go_Parser.CallExpressionContext ctx) {
+        List<String> arguments = new ArrayList<>();
 
         if (ctx != null && ctx.expressionList() != null) {
             String argsText = ctx.expressionList().getText();
