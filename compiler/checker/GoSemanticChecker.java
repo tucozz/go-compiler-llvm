@@ -14,7 +14,6 @@ import compiler.typing.TypeTable;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.lang.reflect.Method;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
@@ -263,26 +262,28 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         int lineNumber = ctx.start.getLine();
         System.out.println("DEBUG: lineNumber = " + lineNumber);
 
-        // Inferir tipo da expressão do lado direito
-        String expressionList = ctx.expressionList().getText();
-        System.out.println("DEBUG: expressionList = " + expressionList);
+        // Extrair expressões individuais
+        Go_Parser.ExprListContext exprListContext = (Go_Parser.ExprListContext) ctx.expressionList();
+        List<Go_Parser.ExprContext> expressions = exprListContext.expr();
 
         List<String> exprTypes = new ArrayList<>();
-        if (expressionList.contains("[]int")) {
-            exprTypes.add("[]int");
-        } else if (expressionList.contains("[]string")) {
-            exprTypes.add("[]string");
-        } else if (expressionList.contains("[]bool")) {
-            exprTypes.add("[]bool");
-        } else {
-            // Por enquanto, assumir tipo desconhecido para outras expressões
-            exprTypes.add("unknown");
+
+        // Inferir tipo de cada expressão separadamente
+        for (Go_Parser.ExprContext exprCtx : expressions) {
+            String exprText = exprCtx.getText();
+            System.out.println("DEBUG: Individual expression = " + exprText);
+
+            String inferredType = inferExpressionType(exprText);
+            exprTypes.add(inferredType);
         }
 
-        String inferredType = "unknown";
+        System.out.println("DEBUG: ExprTypes: " + exprTypes);
+
         // Processar cada variável
         for (int i = 0; i < identifiers.length; i++) {
             String id = identifiers[i].trim();
+            String inferredType = (i < exprTypes.size()) ? exprTypes.get(i) : "unknown";
+
             if (id != null && !id.isEmpty()) {
                 GoType varType = GoType.fromString(inferredType);
                 System.out.println("DEBUG: Adding short variable: " + id + " of type " + varType.getTypeName());
@@ -314,18 +315,41 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
     }
 
     /**
-     * Função auxiliar para extrair texto de TerminalNode usando reflexão mínima
+     * Infere tipo de uma expressão individual
      */
-    private String getTerminalText(Object terminalNode) {
-        if (terminalNode == null)
-            return "unknown";
-
-        try {
-            Method getTextMethod = terminalNode.getClass().getMethod("getText");
-            return (String) getTextMethod.invoke(terminalNode);
-        } catch (Exception e) {
+    private String inferExpressionType(String exprText) {
+        if (exprText == null || exprText.trim().isEmpty()) {
             return "unknown";
         }
+
+        exprText = exprText.trim();
+
+        // Array/slice literals
+        if (exprText.matches("\\[\\]\\w+\\{.*\\}")) {
+            if (exprText.startsWith("[]int{"))
+                return "[]int";
+            if (exprText.startsWith("[]string{"))
+                return "[]string";
+            if (exprText.startsWith("[]bool{"))
+                return "[]bool";
+            if (exprText.startsWith("[]float"))
+                return "[]float64";
+            // Adicionar outros tipos conforme necessário
+        }
+
+        // Usar inferArgumentType existente para outros casos
+        GoType type = inferArgumentType(exprText);
+        return type.getTypeName();
+    }
+
+    /**
+     * Processa composite literals (arrays/slices)
+     */
+    @Override
+    public Void visitCompositeLiteralExpr(Go_Parser.CompositeLiteralExprContext ctx) {
+        System.out.println("DEBUG: CompositeLiteralExpr");
+        // Processar elementos do array/slice
+        return super.visitCompositeLiteralExpr(ctx);
     }
 
     /**
@@ -961,79 +985,47 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
      */
     @Override
     public Void visitArrayAccessExpr(Go_Parser.ArrayAccessExprContext ctx) {
-        // Extrair nome do array e índice usando reflexão
-        String arrayName = extractArrayName(ctx);
-        String indexExpr = extractArrayIndex(ctx);
-
+        // Extrair nome do array e índice
+        String arrayName = null;
+        String indexExpr = null;
+        
+        if (ctx.expr().size() >= 2) {
+            arrayName = ctx.expr(0).getText();  // Primeiro expr é o array
+            indexExpr = ctx.expr(1).getText();  // Segundo expr é o índice
+        }
+        
+        System.out.println("DEBUG: Array access - name: " + arrayName + ", index: " + indexExpr);
+        
         // Verificar se o array existe
         if (arrayName != null && !arrayName.trim().isEmpty()) {
-            // Primeiro verificar na ArrayTable
-            if (arrayTable.hasArray(arrayName)) {
-                ArrayInfo arrayInfo = arrayTable.getArray(arrayName);
-
-                // Verificar se o índice é do tipo int
-                if (indexExpr != null && !indexExpr.trim().isEmpty()) {
-                    GoType indexType = inferArgumentType(indexExpr);
-                    if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-                        reportSemanticError(
-                                "array index must be integer, got " + indexType.getTypeName());
-                    }
-                }
-            }
-            // Fallback: verificar na VarTable para arrays declarados como variáveis
-            else if (varTable.exists(arrayName)) {
+            // Verificar na VarTable primeiro (onde arrays são declarados)
+            if (varTable.exists(arrayName)) {
                 VarEntry arrayEntry = varTable.lookup(arrayName);
                 if (arrayEntry != null) {
                     GoType arrayType = arrayEntry.getType();
-
-                    // Verificar se é realmente um array
-                    if (!arrayType.isArray()) {
-                        reportSemanticError(
-                                "'" + arrayName + "' is not an array (type: " + arrayType.getTypeName() + ")");
-                    } else {
-
+                    System.out.println("DEBUG: Found variable '" + arrayName + "' of type: " + arrayType.getTypeName());
+                    
+                    // Verificar se é realmente um array usando string pattern
+                    if (arrayType.getTypeName().startsWith("[]")) {  // ✅ Fix: usar string pattern
+                        System.out.println("DEBUG: '" + arrayName + "' is confirmed as array");
+                        
                         // Verificar se o índice é do tipo int
                         if (indexExpr != null && !indexExpr.trim().isEmpty()) {
                             GoType indexType = inferArgumentType(indexExpr);
                             if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-                                reportSemanticError(
-                                        "array index must be integer, got " + indexType.getTypeName());
+                                reportSemanticError("array index must be integer, got " + indexType.getTypeName());
                             }
                         }
+                    } else {
+                        reportSemanticError("'" + arrayName + "' is not an array (type: " + arrayType.getTypeName() + ")");
                     }
                 }
-            }
-            // Array não encontrado em nenhuma tabela
-            else {
-                reportSemanticError("undefined array '" + arrayName + "'");
+            } else {
+                reportSemanticError("undefined variable '" + arrayName + "'");
             }
         }
-
-        // Continuar processamento
-        super.visitArrayAccessExpr(ctx);
-        return null;
-    }
-
-    /**
-     * Extrai nome do array usando reflexão
-     */
-    private String extractArrayName(Go_Parser.ArrayAccessExprContext ctx) {
-        if (ctx != null && ctx.expr().size() >= 1) {
-            // O primeiro expr() é o nome do array
-            return getTerminalText(ctx.expr(0));
-        }
-        return "unknown";
-    }
-
-    /**
-     * Extrai índice do array usando reflexão
-     */
-    private String extractArrayIndex(Go_Parser.ArrayAccessExprContext ctx) {
-        if (ctx != null && ctx.expr().size() >= 2) {
-            // O segundo expr() é o índice (primeiro é o array)
-            return getTerminalText(ctx.expr(1));
-        }
-        return "unknown";
+        
+        return super.visitArrayAccessExpr(ctx);
     }
 
     /**

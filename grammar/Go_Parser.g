@@ -135,12 +135,12 @@ block:
 
 expr:
     (PLUS | MINUS | NOT) expr                                               #UnaryPrefixExpr
+    | expr S_BRA_INT expr S_BRA_END                                         #ArrayAccessExpr
     | expr (TIMES | OVER | MOD) expr                                        #MultiplyDivideModExpr
     | expr (PLUS | MINUS) expr                                              #AddSubExpr
     | expr relation_op expr                                                 #ComparisonExpr
     | expr AND expr                                                         #LogicalANDExpr
     | expr OR expr                                                          #LogicalORExpr
-    | expr S_BRA_INT expr S_BRA_END                                         #ArrayAccessExpr
     | primaryExpr (INC | DEC)?                                              #PrimaryOrPostfixExpr
 ;
 
