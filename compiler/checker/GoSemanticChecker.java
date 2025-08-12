@@ -8,6 +8,7 @@ import compiler.tables.VarTable.VarEntry;
 import compiler.tables.FunctionTable;
 import compiler.tables.FunctionInfo;
 import compiler.tables.ArrayTable;
+import compiler.ast.AST;
 import compiler.tables.ArrayInfo;
 import compiler.typing.GoType;
 import compiler.typing.TypeTable;
@@ -16,7 +17,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
-public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
+public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
+
+    AST root;
 
     private VarTable varTable;
     private StrTable stringTable;
@@ -1104,4 +1107,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<Void> {
         System.out.println("Arrays declarados: " + arrayTable.size());
         System.out.println("Strings literais: " + stringTable.size());
     }
+
+    // // Exibe a AST no formato DOT em stderr.
+    // public void printAST() {
+    // 	AST.printDot(root, vt);
+    // }
 }

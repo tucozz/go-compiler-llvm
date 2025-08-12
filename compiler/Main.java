@@ -65,5 +65,9 @@ public class Main {
             System.err.println("❌ Erro durante a análise: " + e.getMessage());
             e.printStackTrace();
         }
+
+        // === 4. AST ===
+        // visitor.printAST();
+
     }
 }
