@@ -10,7 +10,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 // Imports para o lexer e parser ANTLR (pacote Go_Parser)
 import Go_Parser.Go_Lexer;
 import Go_Parser.Go_Parser;
-
+import compiler.ast.AST;
 import compiler.checker.GoSemanticChecker;
 
 public class Main {
@@ -42,27 +42,50 @@ public class Main {
 
             // === 3. ANÁLISE SEMÂNTICA ===
             System.out.println("3. Análise Semântica...");
-            GoSemanticChecker visitor = new GoSemanticChecker();
+            GoSemanticChecker checker = new GoSemanticChecker();
 
             // Visitar a árvore sintática com o visitor
-            visitor.visit(tree);
+            AST ast = checker.visit(tree);
 
             // Imprimir relatório da análise
-            visitor.printReport();
+            checker.printReport();
 
-            System.out.println("\n✅ Análise concluída!");
+            // Verifica se ocorreram erros semânticos
+            if (checker.hasSemanticErrors()) {
+                System.err.println("\nRESULTADO: Compilação falhou devido a erros semânticos.");
+                System.exit(1);
+            } else {
+                // 3. IMPRESSÃO DA AST
+                System.out.println("\n--------------------------------------------------");
+                System.out.println(">>> [FASE 3/3] Gerando Abstract Syntax Tree (AST)...");
+                if (ast != null) {
+                    System.out.println("Para visualizar a árvore, copie o código DOT abaixo");
+                    System.out.println("e cole em um visualizador como: https://dreampuf.github.io/GraphvizOnline/");
+                    System.out.println("\n--- INÍCIO DO CÓDIGO DOT ---");
+                    // Gera e imprime a representação da AST em formato DOT
+                    System.out.println(ASTPrinter.toDot(ast));
+                    System.out.println("--- FIM DO CÓDIGO DOT ---\n");
+                } else {
+                    System.out.println("A AST não foi gerada devido a erros anteriores.");
+                }
 
-            // Verificar erros sintáticos
-            if (parser.getNumberOfSyntaxErrors() > 0) {
-                System.err.println("❌ Erros sintáticos encontrados!");
-                return;
+                System.out.println("RESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado.");
+                System.exit(0);
             }
 
-            System.out.println("✅ Parsing concluído com sucesso!");
-            System.out.println("Parse tree nodes: " + tree.getChildCount());
+            // System.out.println("\n✅ Análise Semântica concluída!");
 
-            // === 4. AST ===
-            visitor.printAST();
+            // // Verificar erros sintáticos
+            // if (parser.getNumberOfSyntaxErrors() > 0) {
+            //     System.err.println("❌ Erros sintáticos encontrados!");
+            //     return;
+            // }
+
+            // System.out.println("✅ Parsing concluído com sucesso!");
+            // System.out.println("Parse tree nodes: " + tree.getChildCount());
+
+            // // === 4. AST ===
+            // visitor.printAST();
 
         } catch (Exception e) {
             System.err.println("❌ Erro durante a análise: " + e.getMessage());
