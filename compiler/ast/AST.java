@@ -227,8 +227,12 @@ public class AST {
 
 	// Imprime a árvore toda em stderr.
 	public static void printDot(AST tree, VarTable table) {
+	    if (tree == null) {
+	        System.err.println("AST is null - cannot print");
+	        return;
+	    }
 	    nr = 0;
-	    System.err.printf("digraph {\ngraph [ordering=\"out\"];\n");
+	    System.err.printf("\ndigraph {\ngraph [ordering=\"out\"];\n");
 	    tree.printNodeDot();
 	    System.err.printf("}\n");
 	}
