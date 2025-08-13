@@ -95,15 +95,24 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     public AST visitProgramRule(Go_Parser.ProgramRuleContext ctx) {
         AST programNode = new AST(NodeKind.PROGRAM_NODE, GoType.NO_TYPE);
         for (Go_Parser.StatementContext stmtCtx : ctx.statement()) {
-            AST childNode = super.visit(stmtCtx);
-            if (childNode != null) {
-                System.out.println("DEBUG: Adding child node: " + childNode.kind);
-                programNode.addChild(childNode);
-            } else {
-                System.out.println("DEBUG: Child node is null, skipping");
-            }
+            programNode.addChild(visit(stmtCtx));
         }
         return programNode;
+    }
+
+    // --- BLOCOS DE CÓDIGO ---
+
+    @Override
+    public AST visitBlockCode(Go_Parser.BlockCodeContext ctx) {
+        varTable.enterScope();
+        AST blockNode = new AST(NodeKind.BLOCK_NODE, GoType.NO_TYPE);
+        if (ctx.statement() != null) {
+            for (Go_Parser.StatementContext stmtCtx : ctx.statement()) {
+                blockNode.addChild(visit(stmtCtx));
+            }
+        }
+        varTable.exitScope();
+        return blockNode;
     }
 
     // --- DECLARAÇÕES ---
