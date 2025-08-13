@@ -100,9 +100,11 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         AST programNode = new AST(NodeKind.PROGRAM_NODE, GoType.NO_TYPE);
         for (Go_Parser.StatementContext stmtCtx : ctx.statement()) {
             AST childNode = super.visit(stmtCtx);
-            System.out.println("DEBUG: Adding child node: " + childNode.toString());
             if (childNode != null) {
+                System.out.println("DEBUG: Adding child node: " + childNode.kind);
                 programNode.addChild(childNode);
+            } else {
+                System.out.println("DEBUG: Child node is null, skipping");
             }
         }
 
@@ -1168,7 +1170,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
 
         // Tabela de Strings
         System.out.println("\n=== STRING TABLE ===");
-        System.out.println("String literals processed by compiler.");
         stringTable.printTable();
 
         // Estatísticas das tabelas
@@ -1179,12 +1180,12 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         System.out.println("Strings literais: " + stringTable.size());
     }
 
-    // Exibe a AST no formato DOT em stderr.
-    public void printAST() {
-        if (root == null) {
-            System.err.println("AST not built - no tree to print");
-            return;
-        }
-        AST.printDot(root, this.varTable);
-    }
+    // // Exibe a AST no formato DOT em stderr.
+    // public void printAST() {
+    //     if (root == null) {
+    //         System.err.println("AST not built - no tree to print");
+    //         return;
+    //     }
+    //     AST.printDot(root, this.varTable);
+    // }
 }

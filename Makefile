@@ -59,13 +59,13 @@ compiler_javac: javac
 
 # Executa o compilador (Main.java) - compila tudo antes
 # Exemplo de uso: make run_compiler FILE=inputs/exemplo.go
-run_compiler: all # Depende de 'all' para garantir que tudo esteja compilado
+rc: all # Depende de 'all' para garantir que tudo esteja compilado
 	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
 
 # Executa o compilador rapidamente (assume que já está compilado)
 # Para uso em scripts de teste em lote
 # Exemplo de uso: make run_compiler_fast FILE=inputs/exemplo.go
-run_compiler_fast:
+rcf:
 	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
 
 # Limpa todos os arquivos gerados

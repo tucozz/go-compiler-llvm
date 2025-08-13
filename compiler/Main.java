@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.tree.ParseTree;
 import Go_Parser.Go_Lexer;
 import Go_Parser.Go_Parser;
 import compiler.ast.AST;
+import compiler.ast.ASTPrinter;
 import compiler.checker.GoSemanticChecker;
 
 public class Main {
@@ -30,18 +31,18 @@ public class Main {
 
         try {
             // === 1. ANÁLISE LÉXICA ===
-            System.out.println("1. Análise Léxica...");
+            System.out.println("\n1. Análise Léxica...");
             CharStream input = CharStreams.fromFileName(filePath);
             Go_Lexer lexer = new Go_Lexer(input);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
 
             // === 2. ANÁLISE SINTÁTICA ===
-            System.out.println("2. Análise Sintática...");
+            System.out.println("\n2. Análise Sintática...");
             Go_Parser parser = new Go_Parser(tokens);
             ParseTree tree = parser.program(); // Regra inicial da gramática
 
             // === 3. ANÁLISE SEMÂNTICA ===
-            System.out.println("3. Análise Semântica...");
+            System.out.println("\n3. Análise Semântica...");
             GoSemanticChecker checker = new GoSemanticChecker();
 
             // Visitar a árvore sintática com o visitor
@@ -53,11 +54,14 @@ public class Main {
             // Verifica se ocorreram erros semânticos
             if (checker.hasSemanticErrors()) {
                 System.err.println("\nRESULTADO: Compilação falhou devido a erros semânticos.");
-                System.exit(1);
+                return;
+            } else if (parser.getNumberOfSyntaxErrors() > 0) {
+                System.err.println("\nRESULTADO: Compilação falhou devido a erros sintáticos.");
+                return;
             } else {
                 // 3. IMPRESSÃO DA AST
                 System.out.println("\n--------------------------------------------------");
-                System.out.println(">>> [FASE 3/3] Gerando Abstract Syntax Tree (AST)...");
+                System.out.println(">>> Gerando Abstract Syntax Tree (AST)...");
                 if (ast != null) {
                     System.out.println("Para visualizar a árvore, copie o código DOT abaixo");
                     System.out.println("e cole em um visualizador como: https://dreampuf.github.io/GraphvizOnline/");
@@ -70,22 +74,8 @@ public class Main {
                 }
 
                 System.out.println("RESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado.");
-                System.exit(0);
+                return;
             }
-
-            // System.out.println("\n✅ Análise Semântica concluída!");
-
-            // // Verificar erros sintáticos
-            // if (parser.getNumberOfSyntaxErrors() > 0) {
-            //     System.err.println("❌ Erros sintáticos encontrados!");
-            //     return;
-            // }
-
-            // System.out.println("✅ Parsing concluído com sucesso!");
-            // System.out.println("Parse tree nodes: " + tree.getChildCount());
-
-            // // === 4. AST ===
-            // visitor.printAST();
 
         } catch (Exception e) {
             System.err.println("❌ Erro durante a análise: " + e.getMessage());

@@ -55,6 +55,11 @@ public class AST {
 		this(kind, 0, floatData, false, null, type, 0, 0);
 	}
 
+	// Cria o nó com um dado String.
+	public AST(NodeKind kind, String text, GoType type) {
+		this(kind, 0, 0.0f, false, text, type, 0, 0);
+	}
+
 	// Cria nó sem dados (para operadores, statements, etc.)
 	public AST(NodeKind kind, GoType type) {
 		this(kind, 0, 0.0f, false, null, type, 0, 0);
@@ -218,10 +223,10 @@ public class AST {
 	    
 	    System.err.printf("\"];\n");
 
-	    for (int i = 0; i < this.children.size(); i++) {
-	        int childNr = this.children.get(i).printNodeDot();
-	        System.err.printf("node%d -> node%d;\n", myNr, childNr);
-	    }
+        for (AST child : this.children) {
+            int childNr = child.printNodeDot();
+            System.err.printf("node%d -> node%d;\n", myNr, childNr);
+        }
 	    return myNr;
 	}
 

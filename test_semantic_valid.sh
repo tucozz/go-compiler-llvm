@@ -57,7 +57,7 @@ test_file() {
     echo -n "Testando $category/$filename... "
     
     # Executar o compilador e capturar output (usando versão rápida)
-    output=$(timeout 10s make run_compiler_fast FILE="$file" 2>&1)
+    output=$(timeout 10s make rcf FILE="$file" 2>&1)
     exit_code=$?
     
     # Verificar se houve timeout
@@ -75,14 +75,21 @@ test_file() {
     fi
     
     # Verificar se houve erros semânticos
-    if echo "$output" | grep -q "SEMANTIC ERROR"; then
+    if echo "$output" | grep -q "RESULTADO: Compilação falhou devido a erros semânticos"; then
         echo -e "${YELLOW}ERRO SEMÂNTICO${NC}"
         SEMANTIC_ERROR_FILES+=("$file")
         return 2
     fi
     
+    # Verificar se houve erros sintáticos (não esperado para valid_tests)
+    if echo "$output" | grep -q "RESULTADO: Compilação falhou devido a erros sintáticos"; then
+        echo -e "${RED}ERRO SINTÁTICO${NC}"
+        FAILED_FILES+=("$file")
+        return 1
+    fi
+    
     # Verificar se a análise foi bem-sucedida
-    if echo "$output" | grep -q "✅ Nenhum erro semântico encontrado"; then
+    if echo "$output" | grep -q "RESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado"; then
         echo -e "${GREEN}PASSOU${NC}"
         return 0
     else
