@@ -19,10 +19,6 @@ import java.util.Arrays;
 import org.antlr.v4.runtime.tree.TerminalNode;
 
 public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
-
-    AST root;
-    GoType lastDeclType;
-
     private VarTable varTable;
     private StrTable stringTable;
     private FunctionTable functionTable;
@@ -107,10 +103,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
                 System.out.println("DEBUG: Child node is null, skipping");
             }
         }
-
-        // Salvar a AST raiz para impressão posterior
-        this.root = programNode;
-        return this.root;
+        return programNode;
     }
 
     // --- DECLARAÇÕES ---
