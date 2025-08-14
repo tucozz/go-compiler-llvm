@@ -394,6 +394,16 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         AST left = visit(ctx.expr(0));
         AST right = visit(ctx.expr(1));
         
+        // Verificar se algum dos operandos é null
+        if (left == null) {
+            reportSemanticError(ctx, "left operand of comparison expression is null");
+            return null;
+        }
+        if (right == null) {
+            reportSemanticError(ctx, "right operand of comparison expression is null");
+            return null;
+        }
+        
         String op = ctx.relation_op().getText();
 
         // Verificação de tipo: os tipos devem ser comparáveis.
@@ -498,6 +508,11 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
             Go_Parser.ExprContext exprCtx = expressions.get(i);
 
             AST exprNode = visit(exprCtx);
+            if (exprNode == null) {
+                // Se o visitador retornou null, criar um nó de erro
+                exprNode = new AST(NodeKind.ID_NODE, GoType.UNKNOWN);
+                System.err.println("WARNING: Expression visitor returned null for: " + exprCtx.getText());
+            }
             exprListNode.addChild(exprNode);
 
             GoType varType = exprNode.getAnnotatedType();
@@ -551,137 +566,147 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
     }
 
-    // /**
-    // * Converte string de tipo para GoType
-    // */
-    // private GoType convertStringToGoType(String typeName) {
-    // if (typeName == null || typeName.equals("unknown")) {
-    // return GoType.UNKNOWN;
-    // }
+    /**
+    * Converte string de tipo para GoType
+    */
+    private GoType convertStringToGoType(String typeName) {
+        if (typeName == null || typeName.equals("unknown")) {
+            return GoType.UNKNOWN;
+        }
 
-    // // Usar o método fromString do GoType
-    // GoType type = GoType.fromString(typeName);
-    // return type != null ? type : GoType.UNKNOWN;
-    // }
+        // Usar o método fromString do GoType
+        GoType type = GoType.fromString(typeName);
+        return type != null ? type : GoType.UNKNOWN;    
+    }
 
     // // --- FUNÇÕES ---
 
-    // @Override
-    // public Void visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
-    // // Verificar se há erro sintático (ID pode ser null)
-    // if (ctx.ID() == null) {
-    // reportSemanticError("invalid function declaration - missing function name");
-    // return null;
-    // }
+    @Override
+    public AST visitFunctionDecl(Go_Parser.FunctionDeclContext ctx) {
+        // Verificar se há erro sintático (ID pode ser null)
+        if (ctx.ID() == null) {
+            reportSemanticError("invalid function declaration - missing function name");
+            return new AST(NodeKind.FUNC_DECL_NODE, GoType.NO_TYPE);
+        }
 
-    // String functionName = ctx.ID().getText();
-    // currentFunctionName = functionName;
+        String functionName = ctx.ID().getText();
+        int lineNumber = ctx.start.getLine();
+        currentFunctionName = functionName;
 
-    // // Verificar se a função já foi declarada
-    // if (functionTable.hasFunction(functionName)) {
-    // reportSemanticError(
-    // "function '" + functionName + "' already declared");
-    // return null;
-    // }
+        // Verificar se a função já foi declarada
+        if (functionTable.hasFunction(functionName)) {
+            reportSemanticError(
+                "function '" + functionName + "' already declared");
+            return new AST(NodeKind.FUNC_DECL_NODE, GoType.NO_TYPE);
+        }
 
-    // // Criar novo escopo para a função
-    // varTable.enterScope();
+        // Criar nó principal da função
+        AST funcDeclNode = new AST(NodeKind.FUNC_DECL_NODE, GoType.NO_TYPE);
 
-    // // Extrair parâmetros da função
-    // Go_Parser.FunctionSignatureContext signature =
-    // (Go_Parser.FunctionSignatureContext) ctx.signature();
-    // Go_Parser.ParametersDeclarationContext paramsDecl =
-    // (Go_Parser.ParametersDeclarationContext) signature
-    // .parameters();
+        // Adicionar o nome da função como primeiro filho
+        AST nameNode = AST.id(functionName, lineNumber, 0);
+        funcDeclNode.addChild(nameNode);
 
-    // // IDs dos parâmetros
-    // List<TerminalNode> idNodes = paramsDecl.ID();
-    // List<String> paramNames = new ArrayList<>();
-    // for (TerminalNode idNode : idNodes) {
-    // paramNames.add(idNode.getText());
-    // }
-    // System.out.println("DEBUG: ID Nodes = " + idNodes);
+        // Criar novo escopo para a função
+        varTable.enterScope();
 
-    // // Tipos dos parâmetros
-    // List<GoType> paramTypeNames = new ArrayList<>();
-    // for (Go_Parser.TypeSpecContext typeNode : paramsDecl.typeSpec()) {
-    // paramTypeNames.add(convertStringToGoType(typeNode.getText()));
-    // }
-    // System.out.println("DEBUG: Parameter Types = " + paramTypeNames);
+        // Extrair parâmetros da função
+        Go_Parser.FunctionSignatureContext signature = 
+            (Go_Parser.FunctionSignatureContext) ctx.signature();
+        Go_Parser.ParametersDeclarationContext paramsDecl = 
+            (Go_Parser.ParametersDeclarationContext) signature.parameters();
 
-    // // Retorno da função
-    // GoType returnType = GoType.VOID; // Default se não especificado
-    // Go_Parser.ResultContext result = signature.result();
-    // if (result != null) {
-    // if (result instanceof Go_Parser.ResultSingleTypeContext) { // Tipo único de
-    // retorno
-    // returnType = convertStringToGoType(result.getText());
-    // System.out.println("DEBUG: Return Type = " + returnType);
+        // Processar parâmetros
+        AST paramListNode = new AST(NodeKind.PARAM_LIST_NODE, GoType.NO_TYPE);
+        funcDeclNode.addChild(paramListNode);
 
-    // }
-    // }
-    // currentFunctionReturnType = returnType;
-    // System.out.println("DEBUG: Return Type = " + returnType);
+        List<String> paramNames = new ArrayList<>();
+        List<GoType> paramTypeNames = new ArrayList<>();
 
-    // // Extrair número da linha da declaração da função
-    // // Extrair número da linha
-    // int lineNumber = ctx.start.getLine();
-    // System.out.println("DEBUG: lineNumber = " + lineNumber);
+        if (paramsDecl != null) {
+            // IDs dos parâmetros
+            List<TerminalNode> idNodes = paramsDecl.ID();
+            for (TerminalNode idNode : idNodes) {
+                paramNames.add(idNode.getText());
+            }
+            System.out.println("DEBUG: ID Nodes = " + idNodes);
 
-    // // Adicionar parâmetros como variáveis locais no escopo da função
-    // for (int i = 0; i < paramNames.size(); i++) {
-    // String id = paramNames.get(i);
-    // GoType type = paramTypeNames.get(i);
+            // Tipos dos parâmetros
+            for (Go_Parser.TypeSpecContext typeNode : paramsDecl.typeSpec()) {
+                paramTypeNames.add(convertStringToGoType(typeNode.getText()));
+            }
+            System.out.println("DEBUG: Parameter Types = " + paramTypeNames);
 
-    // if (!varTable.addVariable(id, type, lineNumber)) {
-    // reportSemanticError("parameter '" + id + "' already declared");
-    // } else {
-    // // Adicionar parâmetros à lista de variáveis processadas para o relatório
-    // VarEntry paramEntry = varTable.lookup(id);
-    // if (paramEntry != null) {
-    // allProcessedVariables.add(paramEntry);
-    // }
+            // Criar nós para cada parâmetro
+            for (int i = 0; i < paramNames.size() && i < paramTypeNames.size(); i++) {
+                String paramName = paramNames.get(i);
+                GoType paramType = paramTypeNames.get(i);
 
-    // // Se for um array, adicionar também à ArrayTable
-    // if (ArrayTable.isArrayType(type.getTypeName())) {
-    // ArrayInfo arrayInfo = ArrayTable.parseArrayType(type.getTypeName());
-    // if (arrayInfo != null) {
-    // arrayTable.addArray(id, arrayInfo.getElementType(), arrayInfo.getSize(),
-    // lineNumber);
-    // }
-    // }
-    // }
-    // }
+                // Criar nó do parâmetro
+                AST paramNode = new AST(NodeKind.PARAM_NODE, GoType.NO_TYPE);
+                AST paramIdNode = AST.id(paramName, lineNumber, 0);
+                paramIdNode.setAnnotatedType(paramType);
+                paramNode.addChild(paramIdNode);
+                paramListNode.addChild(paramNode);
 
-    // // Adicionar função à tabela com tipo de retorno correto
-    // if (!functionTable.addFunction(functionName, paramNames, paramTypeNames,
-    // returnType, lineNumber)) {
-    // reportSemanticError("Failed to add function '" + functionName + "'");
-    // } else {
-    // // Marcar como definida (já que tem corpo)
-    // functionTable.markAsDefined(functionName);
-    // }
+                // Adicionar parâmetro à tabela de símbolos
+                if (!varTable.addVariable(paramName, paramType, lineNumber)) {
+                    reportSemanticError("parameter '" + paramName + "' already declared");
+                } else {
+                    // Adicionar parâmetros à lista de variáveis processadas para o relatório
+                    VarEntry paramEntry = varTable.lookup(paramName);
+                    if (paramEntry != null) {
+                        allProcessedVariables.add(paramEntry);
+                    }
 
-    // // Processar corpo da função (delegar aos visitadores padrão)
-    // super.visitFunctionDecl(ctx);
+                    // Se for um array, adicionar também à ArrayTable
+                    if (ArrayTable.isArrayType(paramType.getTypeName())) {
+                        ArrayInfo arrayInfo = ArrayTable.parseArrayType(paramType.getTypeName());
+                        if (arrayInfo != null) {
+                            arrayTable.addArray(paramName, arrayInfo.getElementType(), arrayInfo.getSize(), lineNumber);
+                        }
+                    }
+                }
+            }
+        }
 
-    // // Sair do escopo da função
-    // varTable.exitScope();
+        // Processar tipo de retorno
+        GoType returnType = GoType.VOID; // Default se não especificado
+        Go_Parser.ResultContext result = signature.result();
+        if (result != null) {
+            if (result instanceof Go_Parser.ResultSingleTypeContext) { // Tipo único de retorno
+                returnType = convertStringToGoType(result.getText());
+                System.out.println("DEBUG: Return Type = " + returnType);
+            }
+        }
+        currentFunctionReturnType = returnType;
+        System.out.println("DEBUG: Return Type = " + returnType);
 
-    // // Limpar rastreamento da função atual
-    // currentFunctionName = null;
-    // currentFunctionReturnType = null;
+        // Adicionar nó do tipo de retorno
+        AST resultNode = new AST(NodeKind.RESULT_NODE, returnType);
+        funcDeclNode.addChild(resultNode);
 
-    // return null;
-    // }
+        // Adicionar função à tabela com tipo de retorno correto
+        if (!functionTable.addFunction(functionName, paramNames, paramTypeNames, returnType, lineNumber)) {
+            reportSemanticError("Failed to add function '" + functionName + "'");
+        } else {
+            // Marcar como definida (já que tem corpo)
+            functionTable.markAsDefined(functionName);
+        }
 
-    // @Override
-    // public Void visitBlockCode(Go_Parser.BlockCodeContext ctx) {
-    // varTable.enterScope(); // Entrar em novo escopo para blocos
-    // super.visitBlockCode(ctx); // Processar conteúdo do bloco
-    // varTable.exitScope(); // Sair do escopo
-    // return null;
-    // }
+        // Processar corpo da função
+        AST bodyNode = visit(ctx.block());
+        funcDeclNode.addChild(bodyNode);
+
+        // Sair do escopo da função
+        varTable.exitScope();
+
+        // Limpar rastreamento da função atual
+        currentFunctionName = null;
+        currentFunctionReturnType = null;
+
+        return funcDeclNode;
+    }
 
     // // --- LITERAIS ---
     @Override
@@ -765,6 +790,55 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return visit(ctx.expr());
     }
 
+    @Override
+    public AST visitTypeCastExpr(Go_Parser.TypeCastExprContext ctx) {
+        // Processar a conversão de tipo usando a regra typeCast
+        return visit(ctx.typeCast());
+    }
+
+    @Override
+    public AST visitTypeConversion(Go_Parser.TypeConversionContext ctx) {
+        String typeName = ctx.typeSpec().getText();
+        int lineNumber = ctx.start.getLine();
+        
+        System.out.println("DEBUG: visitTypeConversion - typeName = " + typeName);
+        
+        // Obter o tipo de destino
+        GoType targetType = GoType.fromString(typeName);
+        if (targetType == GoType.UNKNOWN) {
+            reportSemanticError(ctx, "unknown type: " + typeName);
+            return null;
+        }
+        
+        // Processar a expressão a ser convertida
+        AST sourceExpr = visit(ctx.expr());
+        if (sourceExpr == null) {
+            reportSemanticError(ctx, "invalid expression in type conversion");
+            return null;
+        }
+        
+        GoType sourceType = sourceExpr.getAnnotatedType();
+        if (sourceType == null || sourceType == GoType.UNKNOWN) {
+            reportSemanticError(ctx, "cannot convert expression of unknown type");
+            return null;
+        }
+        
+        // Verificar se a conversão é válida
+        if (targetType.isNumeric() && sourceType.isNumeric()) {
+            // Conversão entre tipos numéricos é permitida
+            AST conversionNode = AST.newSubtree(NodeKind.TYPE_CONV_NODE, targetType, sourceExpr);
+            conversionNode.setAnnotatedType(targetType);
+            System.out.println("DEBUG: Created type conversion from " + sourceType.getTypeName() + " to " + targetType.getTypeName());
+            return conversionNode;
+        } else if (targetType == sourceType) {
+            // Conversão para o mesmo tipo (permitida, mas desnecessária)
+            return sourceExpr;
+        } else {
+            reportSemanticError(ctx, "cannot convert " + sourceType.getTypeName() + " to " + targetType.getTypeName());
+            return null;
+        }
+    }
+
     // /**
     // * Processa chamadas de função
     // */
@@ -781,71 +855,91 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // }
     // }
 
-    // // Se agora a função existe, validar argumentos
-    // if (functionTable.hasFunction(functionName)) {
-    // // Extrair argumentos da chamada
-    // List<String> arguments = extractCallArguments(ctx);
+    /**
+     * Processa chamadas de função
+     */
+    @Override
+    public AST visitCallExpression(Go_Parser.CallExpressionContext ctx) {
+        String functionName = ctx.ID().getText();
+        int lineNumber = ctx.start.getLine();
 
-    // // Validar número de argumentos
-    // FunctionInfo funcInfo = functionTable.getFunction(functionName);
-    // if (funcInfo != null) {
-    // List<GoType> expectedParamTypes = funcInfo.getParameterTypes();
+        // Criar nó da função (identificador)
+        AST functionNode = AST.id(functionName, lineNumber, 0);
 
-    // if (arguments.size() != expectedParamTypes.size()) {
-    // reportSemanticError(ctx,
-    // "function '" + functionName + "' expects " + expectedParamTypes.size() +
-    // " arguments, got " + arguments.size());
-    // } else {
+        // Criar lista de argumentos
+        List<AST> arguments = new ArrayList<>();
+        
+        // Se há argumentos, processá-los
+        if (ctx.expressionList() != null) {
+            Go_Parser.ExprListContext exprListContext = (Go_Parser.ExprListContext) ctx.expressionList();
+            List<Go_Parser.ExprContext> expressions = exprListContext.expr();
 
-    // // Validar tipos dos argumentos (implementação básica)
-    // for (int i = 0; i < arguments.size(); i++) {
-    // String arg = arguments.get(i);
-    // GoType expectedType = expectedParamTypes.get(i);
-    // GoType argType = inferArgumentType(arg);
+            for (Go_Parser.ExprContext exprCtx : expressions) {
+                AST argNode = visit(exprCtx);
+                if (argNode != null) {
+                    arguments.add(argNode);
+                }
+            }
+        }
 
-    // if (!areTypesCompatible(argType, expectedType)) {
-    // reportSemanticError(ctx,
-    // "argument " + (i + 1) + " to '" + functionName +
-    // "': cannot convert " + argType.getTypeName() +
-    // " to " + expectedType.getTypeName());
-    // }
-    // }
-    // }
-    // }
-    // }
+        // Se a função não existe, verificar se é built-in e adicioná-la
+        if (!functionTable.hasFunction(functionName)) {
+            if (isBuiltInFunction(functionName)) {
+                functionTable.addBuiltInFunctionIfNeeded(functionName);
+            } else {
+                reportSemanticError(ctx, "undefined function '" + functionName + "'");
+            }
+        }
 
-    // // Continuar processamento dos argumentos
-    // super.visitCallExpression(ctx);
-    // return null;
-    // }
+        // Se agora a função existe, validar argumentos
+        GoType returnType = GoType.UNKNOWN;
+        if (functionTable.hasFunction(functionName)) {
+            // Validar número de argumentos
+            FunctionInfo funcInfo = functionTable.getFunction(functionName);
+            if (funcInfo != null) {
+                List<GoType> expectedParamTypes = funcInfo.getParameterTypes();
+                returnType = funcInfo.getReturnType();
 
-    // /**
-    // * Verifica se uma função é built-in do Go
-    // */
-    // private boolean isBuiltInFunction(String functionName) {
-    // return "println".equals(functionName) || "len".equals(functionName);
-    // }
+                if (arguments.size() != expectedParamTypes.size()) {
+                    reportSemanticError(ctx,
+                        "function '" + functionName + "' expects " + expectedParamTypes.size() +
+                        " arguments, got " + arguments.size());
+                } else {
+                    // Validar tipos dos argumentos
+                    for (int i = 0; i < arguments.size(); i++) {
+                        AST argNode = arguments.get(i);
+                        GoType expectedType = expectedParamTypes.get(i);
+                        GoType argType = argNode.getAnnotatedType();
+                        
+                        if (argType == null) {
+                            argType = GoType.UNKNOWN;
+                        }
 
-    // /**
-    // * Extrai argumentos de uma chamada de função usando parsing simples
-    // */
-    // private List<String> extractCallArguments(Go_Parser.CallExpressionContext
-    // ctx) {
-    // List<String> arguments = new ArrayList<>();
+                        if (!areTypesCompatible(argType, expectedType)) {
+                            reportSemanticError(ctx,
+                                "argument " + (i + 1) + " to '" + functionName +
+                                "': cannot convert " + argType.getTypeName() +
+                                " to " + expectedType.getTypeName());
+                        }
+                    }
+                }
+            }
+        }
 
-    // if (ctx != null && ctx.expressionList() != null) {
-    // String argsText = ctx.expressionList().getText();
-    // if (argsText != null && !argsText.isEmpty()) {
-    // // Parsing simples por vírgulas
-    // String[] args = argsText.split(",");
-    // for (String arg : args) {
-    // arguments.add(arg.trim());
-    // }
-    // }
-    // }
+        // Criar e retornar o nó da chamada de função
+        AST callNode = AST.call(functionNode, arguments, lineNumber, 0);
+        callNode.setAnnotatedType(returnType);
+        return callNode;
+    }
 
-    // return arguments;
-    // }
+    /**
+     * Verifica se uma função é built-in do Go
+     */
+    private boolean isBuiltInFunction(String functionName) {
+        return "println".equals(functionName) || "len".equals(functionName);
+    }
+
+
 
     // /**
     // * Infere o tipo de um argumento baseado em sua representação textual
@@ -1009,7 +1103,63 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // return null;
     // }
 
-    // // --- STATEMENTS DE CONTROLE ---
+    /**
+    * Processa statements de return
+    */
+    @Override
+    public AST visitReturnStatement(Go_Parser.ReturnStatementContext ctx) {
+        System.out.println("DEBUG: Return Statement");
+        
+        // Criar o nó principal para o statement de return
+        AST returnNode = new AST(NodeKind.RETURN_NODE, GoType.NO_TYPE);
+        int lineNumber = ctx.start.getLine();
+        
+        // Verificação semântica: return deve estar dentro de uma função
+        if (currentFunctionName == null || currentFunctionReturnType == null) {
+            reportSemanticError("return statement outside of function");
+            return returnNode; // Retorna nó mesmo com erro para não quebrar a AST
+        }
+        
+        // Processar a expressão de retorno (se existir)
+        if (ctx.expr() != null) {
+            // Visitar a expressão e adicionar como filho do nó return
+            AST exprNode = visit(ctx.expr());
+            returnNode.addChild(exprNode);
+            
+            // Verificação semântica: verificar compatibilidade de tipos
+            GoType returnType = exprNode.getAnnotatedType();
+            if (returnType == null) {
+                returnType = inferArgumentType(ctx.expr().getText());
+            }
+            
+            System.out.println("DEBUG: Return Expression Type = " + returnType.getTypeName());
+            
+            if (!areTypesCompatible(returnType, currentFunctionReturnType)) {
+                reportSemanticError(
+                    "function '" + currentFunctionName + "' expects return type " +
+                    currentFunctionReturnType.getTypeName() + ", but got " +
+                    returnType.getTypeName());
+            }
+            
+            // Anotar o tipo da expressão no nó return
+            returnNode.setAnnotatedType(returnType);
+            
+        } else {
+            // Return sem expressão - verificar se a função deveria retornar void
+            if (currentFunctionReturnType != GoType.VOID) {
+                reportSemanticError(
+                    "function '" + currentFunctionName + "' expects return type " +
+                    currentFunctionReturnType.getTypeName() + ", but got void");
+            }
+            
+            // Anotar como void
+            returnNode.setAnnotatedType(GoType.VOID);
+        }
+        
+        return returnNode;
+    }
+
+    // --- STATEMENTS DE CONTROLE ---
 
     // /**
     // * Processa assignments simples (x = y)
@@ -1077,6 +1227,13 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         // --- 1. Processa a Condição ---
         // Visita a expressão da condição para obter sua subárvore e tipo.
         AST conditionNode = visit(ctx.expr());
+        
+        // Verificar se a condição é null
+        if (conditionNode == null) {
+            reportSemanticError(ctx, "if condition expression is null");
+            return null;
+        }
+        
         ifNode.addChild(conditionNode); // O primeiro filho é sempre a condição.
 
         // Verificação Semântica: A condição de um if deve ser booleana.
