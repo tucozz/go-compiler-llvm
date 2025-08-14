@@ -120,9 +120,15 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     @Override
     public AST visitConstDecl(Go_Parser.ConstDeclContext ctx) {
         System.out.println("DEBUG: ConstDecl Principal");
-
         AST constDeclNode = new AST(NodeKind.CONST_DECL_NODE, GoType.NO_TYPE);
-        constDeclNode.addChild(super.visitConstDecl(ctx));
+
+        // Visita explicitamente cada 'constSpec' e adiciona sua subárvore
+        if (ctx.constSpec() != null) {
+            for (Go_Parser.ConstSpecContext specCtx : ctx.constSpec()) {
+                constDeclNode.addChild(visit(specCtx));
+            }
+        }
+        
         return constDeclNode;
     }
 
@@ -141,59 +147,50 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // // --- ESPECIFICAÇÕES ---
 
     // // Regra identifierList (typeSpec)? ASSIGN expressionList
-    // @Override
-    // public Void visitConstSpecification(Go_Parser.ConstSpecificationContext ctx)
-    // {
-    // System.out.println("DEBUG: ConstSpec");
+    @Override
+    public AST visitConstSpecification(Go_Parser.ConstSpecificationContext ctx) {
+        System.out.println("DEBUG: ConstSpec");
+        AST constSpecNode = new AST(NodeKind.CONST_SPEC_NODE, GoType.NO_TYPE);
+        int lineNumber = ctx.start.getLine();
 
-    // // Extrair typeSpec
-    // String typeSpec = "unknown";
-    // if (ctx.typeSpec() != null) {
-    // typeSpec = ctx.typeSpec().getText();
-    // }
-    // System.out.println("DEBUG: typeSpec = " + typeSpec);
+        // Extrair identificadores
+        String[] identifiers = ctx.identifierList().getText().split(",");
 
-    // // Extrair identifierLIst
-    // String[] identifiers = ctx.identifierList().getText().split(",");
-    // for (String id : identifiers) {
-    // System.out.println("DEBUG: identifier = " + id.trim());
-    // }
+        // Extrair tipo (opcional para constantes, mas vamos processá-lo se existir)
+        GoType constType = GoType.UNKNOWN; // Tipo padrão se não especificado
+        if (ctx.typeSpec() != null) {
+            constType = GoType.fromString(ctx.typeSpec().getText());
+        }
 
-    // // Extrair número da linha
-    // int lineNumber = ctx.start.getLine();
-    // System.out.println("DEBUG: lineNumber = " + lineNumber);
+        // Adicionar constantes à tabela de símbolos e nós à AST
+        for (String id : identifiers) {
+            id = id.trim();
+            if (!id.isEmpty()) {
+                // Tenta adicionar a constante à tabela
+                if (!varTable.addConstant(id, constType, lineNumber)) {
+                    VarEntry existing = varTable.lookup(id);
+                    if (existing != null && varTable.existsInCurrentScope(id)) {
+                        reportSemanticError(ctx,
+                                "constant '" + id + "' already declared at line " + existing.getDeclarationLine());
+                    }
+                }
+                // Adiciona o nó do identificador à AST
+                constSpecNode.addChild(AST.id(id, lineNumber, 0));
+            }
+        }
+        
+        // Processar a lista de expressões (valores da constante)
+        if (ctx.expressionList() != null) {
+            AST exprListNode = new AST(NodeKind.EXPR_LIST_NODE, GoType.NO_TYPE);
+            constSpecNode.addChild(exprListNode);
+            
+            for (Go_Parser.ExprContext exprCtx : ((Go_Parser.ExprListContext)ctx.expressionList()).expr()) {
+                exprListNode.addChild(visit(exprCtx));
+            }
+        }
 
-    // // Processar cada constante
-    // for (String id : identifiers) {
-    // if (id != null && !id.isEmpty()) {
-    // GoType constType = GoType.fromString(typeSpec);
-
-    // // Tentar adicionar a constante à tabela
-    // if (!varTable.addConstant(id, constType, lineNumber)) {
-    // VarEntry existing = varTable.lookup(id);
-    // if (existing != null && varTable.existsInCurrentScope(id)) {
-    // reportSemanticError(ctx,
-    // "constant '" + id + "' already declared at line " +
-    // existing.getDeclarationLine());
-    // }
-    // } else {
-    // // Adicionar à lista de variáveis processadas para o relatório
-    // VarEntry constEntry = varTable.lookup(id);
-    // if (constEntry != null) {
-    // allProcessedVariables.add(constEntry);
-    // }
-
-    // // Adicionar também à tabela de tipos para referência
-    // typeTable.addVariable(id, constType);
-
-    // // Se for um array, adicionar à ArrayTable
-    // processArrayDeclaration(id, typeSpec, lineNumber);
-    // }
-    // }
-    // }
-
-    // return null;
-    // }
+        return constSpecNode;
+    }
 
     @Override
     public AST visitVarSpecification(Go_Parser.VarSpecificationContext ctx) {
