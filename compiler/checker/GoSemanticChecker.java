@@ -296,6 +296,170 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return varSpecNode;
     }
 
+    // --- EXPRESSÕES ARITMÉTICAS ---
+
+    @Override
+    public AST visitAddSubExpr(Go_Parser.AddSubExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        String op = ctx.getChild(1).getText();
+        NodeKind kind = op.equals("+") ? NodeKind.PLUS_NODE : NodeKind.MINUS_NODE;
+
+        GoType leftType = left.getAnnotatedType();
+        GoType rightType = right.getAnnotatedType();
+        GoType resultType = typeTable.getBinaryOperationResultType(leftType, rightType, op);
+
+        if (resultType == GoType.UNKNOWN) {
+            reportSemanticError(ctx, "invalid operation: " + leftType.getTypeName() + " " + op + " " + rightType.getTypeName());
+        }
+
+        AST node = AST.binaryOp(kind, left, right, ctx.start.getLine(), 0);
+        node.setAnnotatedType(resultType);
+        
+        return node;
+    }
+
+    @Override
+    public AST visitMultiplyDivideModExpr(Go_Parser.MultiplyDivideModExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        String op = ctx.getChild(1).getText();
+        NodeKind kind;
+        if (op.equals("*")) {
+            kind = NodeKind.TIMES_NODE;
+        } else if (op.equals("/")) {
+            kind = NodeKind.OVER_NODE;
+        } else {
+            kind = NodeKind.MOD_NODE;
+        }
+        
+        GoType leftType = left.getAnnotatedType();
+        GoType rightType = right.getAnnotatedType();
+        GoType resultType = typeTable.getBinaryOperationResultType(leftType, rightType, op);
+        
+        if (resultType == GoType.UNKNOWN) {
+            reportSemanticError(ctx, "invalid operation: " + leftType.getTypeName() + " " + op + " " + rightType.getTypeName());
+        }
+
+        AST node = AST.binaryOp(kind, left, right, ctx.start.getLine(), 0);
+        node.setAnnotatedType(resultType);
+        
+        return node;
+    }
+
+    // --- EXPRESSÕES LÓGICAS E DE COMPARAÇÃO ---
+
+    @Override
+    public AST visitLogicalANDExpr(Go_Parser.LogicalANDExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        // Verificação semântica: operandos de '&&' devem ser booleanos.
+        GoType leftType = left.getAnnotatedType();
+        GoType rightType = right.getAnnotatedType();
+        if (leftType != GoType.BOOL || rightType != GoType.BOOL) {
+            reportSemanticError(ctx, "invalid operation: non-boolean arguments to && (" 
+                + leftType.getTypeName() + " and " + rightType.getTypeName() + ")");
+        }
+
+        // O resultado de uma operação lógica é sempre booleano.
+        AST node = AST.binaryOp(NodeKind.AND_NODE, left, right, ctx.start.getLine(), 0);
+        node.setAnnotatedType(GoType.BOOL);
+        return node;
+    }
+
+    @Override
+    public AST visitLogicalORExpr(Go_Parser.LogicalORExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+
+        // Verificação semântica: operandos de '||' devem ser booleanos.
+        GoType leftType = left.getAnnotatedType();
+        GoType rightType = right.getAnnotatedType();
+        if (leftType != GoType.BOOL || rightType != GoType.BOOL) {
+            reportSemanticError(ctx, "invalid operation: non-boolean arguments to || (" 
+                + leftType.getTypeName() + " and " + rightType.getTypeName() + ")");
+        }
+        
+        // O resultado de uma operação lógica é sempre booleano.
+        AST node = AST.binaryOp(NodeKind.OR_NODE, left, right, ctx.start.getLine(), 0);
+        node.setAnnotatedType(GoType.BOOL);
+        return node;
+    }
+
+    @Override
+    public AST visitComparisonExpr(Go_Parser.ComparisonExprContext ctx) {
+        AST left = visit(ctx.expr(0));
+        AST right = visit(ctx.expr(1));
+        
+        String op = ctx.relation_op().getText();
+
+        // Verificação de tipo: os tipos devem ser comparáveis.
+        GoType leftType = left.getAnnotatedType();
+        GoType rightType = right.getAnnotatedType();
+        
+        // Usamos a typeTable para verificar se a operação é válida
+        GoType resultType = typeTable.getBinaryOperationResultType(leftType, rightType, op);
+        if (resultType == GoType.UNKNOWN) {
+             reportSemanticError(ctx, "invalid operation: cannot compare " 
+                + leftType.getTypeName() + " and " + rightType.getTypeName());
+        }
+
+        // Mapeia o operador para o NodeKind correspondente
+        NodeKind kind;
+        switch(op) {
+            case "==": kind = NodeKind.EQUAL_NODE; break;
+            case "!=": kind = NodeKind.NOT_EQUAL_NODE; break;
+            case "<":  kind = NodeKind.LESS_NODE; break;
+            case "<=": kind = NodeKind.LESS_EQ_NODE; break;
+            case ">":  kind = NodeKind.GREATER_NODE; break;
+            case ">=": kind = NodeKind.GREATER_EQ_NODE; break;
+            default:
+                // Não deve acontecer
+                throw new RuntimeException("Operador de comparação desconhecido: " + op);
+        }
+
+        // O resultado de uma comparação é sempre booleano.
+        AST node = AST.binaryOp(kind, left, right, ctx.start.getLine(), 0);
+        node.setAnnotatedType(GoType.BOOL);
+        return node;
+    }
+    
+    @Override
+    public AST visitUnaryPrefixExpr(Go_Parser.UnaryPrefixExprContext ctx) {
+        AST operand = visit(ctx.expr());
+        String op = ctx.getChild(0).getText();
+
+        switch(op) {
+            case "!":
+                if (operand.getAnnotatedType() != GoType.BOOL) {
+                    reportSemanticError(ctx, "invalid operation: argument to ! is not boolean");
+                }
+                AST notNode = AST.unaryOp(NodeKind.NOT_NODE, operand, ctx.start.getLine(), 0);
+                notNode.setAnnotatedType(GoType.BOOL);
+                return notNode;
+
+            case "+":
+                 // O '+' unário não muda o valor ou tipo.
+                 // Apenas retornamos o nó do operando.
+                return operand;
+
+            case "-":
+                // O '-' unário deve ser aplicado a tipos numéricos.
+                GoType type = operand.getAnnotatedType();
+                if (!type.isNumeric()) {
+                     reportSemanticError(ctx, "invalid operation: unary - applied to non-numeric type " + type.getTypeName());
+                }
+                AST minusNode = AST.unaryOp(NodeKind.UNARY_MINUS_NODE, operand, ctx.start.getLine(), 0);
+                minusNode.setAnnotatedType(type); // Tipo resultante é o mesmo do operando.
+                return minusNode;
+        }
+
+        return operand; // Fallback, não deve ser alcançado.
+    }
+
     // // --- DECLARAÇÕES CURTAS ---
 
     // // Não está inferindo o tipo da expressão do lado direito, apenas processando
@@ -548,49 +712,50 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     public AST visitIntLiteral(Go_Parser.IntLiteralContext ctx) {
         String text = ctx.getText();
         int line = ctx.start.getLine();
-        // Converte o texto para inteiro antes de passar para a factory.
         int value = Integer.parseInt(text);
-        // AST: Cria um nó para o literal inteiro usando a factory correta. 
-        return AST.intLit(value, line, 0);
+        
+        AST node = AST.intLit(value, line, 0);
+        node.setAnnotatedType(GoType.INT); // <-- ADICIONAR ESTA LINHA
+        return node;
     }
 
     @Override
     public AST visitFloatLiteral(Go_Parser.FloatLiteralContext ctx) {
         String text = ctx.getText();
         int line = ctx.start.getLine();
-        // Converte o texto para float antes de passar para a factory.
         float value = Float.parseFloat(text);
-        // AST: Cria um nó para o literal float usando a factory correta. 
-        return AST.realLit(value, line, 0);
+
+        AST node = AST.realLit(value, line, 0);
+        node.setAnnotatedType(GoType.FLOAT64); // <-- ADICIONAR ESTA LINHA
+        return node;
     }
 
     @Override
     public AST visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
         String textWithQuotes = ctx.getText();
         int line = ctx.start.getLine();
-        
-        // Semântica: Adiciona a string (com aspas) à tabela de strings.
         stringTable.addString(textWithQuotes);
-
-        // Remove as aspas para armazenar o valor puro na AST.
         String value = textWithQuotes.substring(1, textWithQuotes.length() - 1);
         
-        // AST: Cria um nó para o literal string usando a factory correta. 
-        return AST.strLit(value, line, 0);
+        AST node = AST.strLit(value, line, 0);
+        node.setAnnotatedType(GoType.STRING); // <-- ADICIONAR ESTA LINHA
+        return node;
     }
 
     @Override
     public AST visitTrueLiteral(Go_Parser.TrueLiteralContext ctx) {
         int line = ctx.start.getLine();
-        // AST: Cria um nó para o literal booleano 'true' usando a factory correta. 
-        return AST.boolLit(true, line, 0);
+        AST node = AST.boolLit(true, line, 0);
+        node.setAnnotatedType(GoType.BOOL); // <-- ADICIONAR ESTA LINHA
+        return node;
     }
 
     @Override
     public AST visitFalseLiteral(Go_Parser.FalseLiteralContext ctx) {
         int line = ctx.start.getLine();
-        // AST: Cria um nó para o literal booleano 'false' usando a factory correta. 
-        return AST.boolLit(false, line, 0);
+        AST node = AST.boolLit(false, line, 0);
+        node.setAnnotatedType(GoType.BOOL); // <-- ADICIONAR ESTA LINHA
+        return node;
     }
 
     @Override
