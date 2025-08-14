@@ -533,6 +533,18 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
                  if (varEntry != null) {
                     allProcessedVariables.add(varEntry);
                  }
+
+                 // Adicionar também à tabela de tipos para referência
+                 typeTable.addVariable(id, varType);
+
+                 // Se for um array, adicionar à ArrayTable
+                 if (ArrayTable.isArrayType(varType.getTypeName())) {
+                     ArrayInfo arrayInfo = ArrayTable.parseArrayType(varType.getTypeName());
+                     if (arrayInfo != null) {
+                         arrayTable.addArray(id, arrayInfo.getElementType(), arrayInfo.getSize(), lineNumber);
+                         System.out.println("DEBUG: Added array to ArrayTable: " + id + " of type " + varType.getTypeName());
+                     }
+                 }
             }
             
             AST idNode = AST.id(id, lineNumber, 0);
@@ -543,7 +555,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return shortDeclNode;
     }
 
-    // /**
+        // /**
     // * Processa composite literals (arrays/slices)
     // */
     // @Override
@@ -553,6 +565,54 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // // Processar elementos do array/slice
     // return super.visitCompositeLiteralExpr(ctx);
     // }
+
+
+    /**
+     * Processa composite literals (arrays/slices)
+     */
+    @Override
+    public AST visitCompositeLiteralExpr(Go_Parser.CompositeLiteralExprContext ctx) {
+        System.out.println("DEBUG: CompositeLiteralExpr");
+        
+        // Criar nó principal para o composite literal
+        AST compositeLiteralNode = new AST(NodeKind.COMPOSITE_LITERAL_NODE, GoType.UNKNOWN);
+        
+        // Por enquanto, retornamos um nó simples
+        // A inferência de tipo será tratada no método inferArgumentType
+        return compositeLiteralNode;
+    }
+
+    /**
+     * Processa array/slice literals específicos
+     */
+    @Override
+    public AST visitArraySliceLiteral(Go_Parser.ArraySliceLiteralContext ctx) {
+        System.out.println("DEBUG: ArraySliceLiteral");
+        
+        // Criar nó para array/slice literal
+        AST arrayLiteralNode = new AST(NodeKind.COMPOSITE_LITERAL_NODE, GoType.UNKNOWN);
+        
+        // Processar tipo se disponível
+        if (ctx.typeSpec() != null) {
+            // Para agora, vamos usar o toString() como fallback
+            String typeText = ctx.typeSpec().toString();
+            GoType arrayType = GoType.fromString(typeText);
+            arrayLiteralNode.setAnnotatedType(arrayType);
+            
+            System.out.println("DEBUG: ArraySliceLiteral type inferred: " + arrayType.getTypeName());
+        }
+        
+        // Processar lista de expressões se disponível
+        if (ctx.expressionList() != null) {
+            AST exprListNode = new AST(NodeKind.EXPR_LIST_NODE, GoType.NO_TYPE);
+            arrayLiteralNode.addChild(exprListNode);
+            
+            // Por enquanto, apenas criamos o nó sem processar as expressões detalhadamente
+            // Isso pode ser expandido mais tarde conforme necessário
+        }
+        
+        return arrayLiteralNode;
+    }
 
     /**
      * Processa declaração de array e adiciona à ArrayTable
@@ -736,11 +796,35 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     @Override
     public AST visitIntLiteral(Go_Parser.IntLiteralContext ctx) {
         String text = ctx.getText();
-        int line = ctx.start.getLine();
-        int value = Integer.parseInt(text);
+        int line = 0; // Usar valor padrão por enquanto devido a problemas de API
+        int value;
+        
+        try {
+            // Lidar com diferentes formatos de literais inteiros
+            if (text.startsWith("0b") || text.startsWith("0B")) {
+                // Literal binário (0b1010)
+                value = Integer.parseInt(text.substring(2), 2);
+            } else if (text.startsWith("0o") || text.startsWith("0O")) {
+                // Literal octal (0o755)
+                value = Integer.parseInt(text.substring(2), 8);
+            } else if (text.startsWith("0x") || text.startsWith("0X")) {
+                // Literal hexadecimal (0xFF)
+                value = Integer.parseInt(text.substring(2), 16);
+            } else if (text.startsWith("0") && text.length() > 1 && !text.contains(".")) {
+                // Literal octal tradicional (0755) - apenas se não for float
+                value = Integer.parseInt(text, 8);
+            } else {
+                // Literal decimal padrão (42)
+                value = Integer.parseInt(text);
+            }
+        } catch (NumberFormatException e) {
+            // Em caso de erro, usar 0 como valor padrão e reportar erro
+            reportSemanticError("Invalid integer literal: " + text);
+            value = 0;
+        }
         
         AST node = AST.intLit(value, line, 0);
-        node.setAnnotatedType(GoType.INT); // <-- ADICIONAR ESTA LINHA
+        node.setAnnotatedType(GoType.INT);
         return node;
     }
 
@@ -839,22 +923,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
     }
 
-    // /**
-    // * Processa chamadas de função
-    // */
-    // @Override
-    // public Void visitCallExpression(Go_Parser.CallExpressionContext ctx) {
-    // String functionName = ctx.ID().getText();
-
-    // // Se a função não existe, verificar se é built-in e adicioná-la
-    // if (!functionTable.hasFunction(functionName)) {
-    // if (isBuiltInFunction(functionName)) {
-    // functionTable.addBuiltInFunctionIfNeeded(functionName);
-    // } else {
-    // reportSemanticError(ctx, "undefined function '" + functionName + "'");
-    // }
-    // }
-
     /**
      * Processa chamadas de função
      */
@@ -952,6 +1020,20 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
 
         // Remover espaços
         arg = arg.trim();
+
+        // Verificar se é um composite literal ([]tipo{...})
+        if (arg.startsWith("[]") && arg.contains("{") && arg.contains("}")) {
+            // Extrair o tipo entre [] e {
+            int braceIndex = arg.indexOf("{");
+            if (braceIndex > 2) {
+                String typePrefix = arg.substring(0, braceIndex); // ex: "[]int"
+                GoType compositeType = GoType.fromString(typePrefix);
+                if (compositeType != GoType.UNKNOWN) {
+                    System.out.println("DEBUG: Inferred composite literal type: " + compositeType.getTypeName());
+                    return compositeType;
+                }
+            }
+        }
 
         // Usar TypeTable para inferir tipo de literais
         GoType literalType = typeTable.inferLiteralType(arg);
@@ -1063,46 +1145,6 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         // Delegar para a lógica de compatibilidade da classe GoType
         return actual.isCompatibleWith(expected);
     }
-
-    // /**
-    // * Processa statements de return
-    // */
-    // @Override
-    // public Void visitReturnStatement(Go_Parser.ReturnStatementContext ctx) {
-    // System.out.println("DEBUG: Return Statement");
-    // if (currentFunctionName == null || currentFunctionReturnType == null) {
-    // reportSemanticError("return statement outside of function");
-    // return null;
-    // }
-    // String returnExpr = null;
-    // if (ctx.expr() != null) {
-    // returnExpr = ctx.expr().getText();
-    // }
-    // System.out.println("DEBUG: Return Expression = " + returnExpr);
-
-    // if (returnExpr == null || returnExpr.trim().isEmpty()) {
-    // // Return sem expressão
-    // if (currentFunctionReturnType != GoType.VOID) {
-    // reportSemanticError(
-    // "function '" + currentFunctionName + "' expects return type " +
-    // currentFunctionReturnType.getTypeName() + ", but got void");
-    // }
-    // } else {
-    // // Return com expressão - verificar tipo
-    // GoType returnType = inferArgumentType(returnExpr.trim());
-
-    // if (!areTypesCompatible(returnType, currentFunctionReturnType)) {
-    // reportSemanticError(
-    // "function '" + currentFunctionName + "' expects return type " +
-    // currentFunctionReturnType.getTypeName() + ", but got " +
-    // returnType.getTypeName());
-    // }
-    // }
-
-    // // Continuar processamento
-    // super.visitReturnStatement(ctx);
-    // return null;
-    // }
 
     /**
     * Processa statements de return
@@ -1373,57 +1415,85 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         return clauseNode;
     }
 
-    // /**
-    // * Processa acesso a arrays (arr[index])
-    // */
-    // @Override
-    // public Void visitArrayAccessExpr(Go_Parser.ArrayAccessExprContext ctx) {
-    // // Extrair nome do array e índice
-    // String arrayName = null;
-    // String indexExpr = null;
-
-    // if (ctx.expr().size() >= 2) {
-    // arrayName = ctx.expr(0).getText(); // Primeiro expr é o array
-    // indexExpr = ctx.expr(1).getText(); // Segundo expr é o índice
-    // }
-
-    // System.out.println("DEBUG: Array access - name: " + arrayName + ", index: " +
-    // indexExpr);
-
-    // // Verificar se o array existe
-    // if (arrayName != null && !arrayName.trim().isEmpty()) {
-    // // Verificar na VarTable primeiro (onde arrays são declarados)
-    // if (varTable.exists(arrayName)) {
-    // VarEntry arrayEntry = varTable.lookup(arrayName);
-    // if (arrayEntry != null) {
-    // GoType arrayType = arrayEntry.getType();
-    // System.out.println("DEBUG: Found variable '" + arrayName + "' of type: " +
-    // arrayType.getTypeName());
-
-    // // Verificar se é realmente um array usando string pattern
-    // if (arrayType.getTypeName().startsWith("[]")) { // ✅ Fix: usar string pattern
-    // System.out.println("DEBUG: '" + arrayName + "' is confirmed as array");
-
-    // // Verificar se o índice é do tipo int
-    // if (indexExpr != null && !indexExpr.trim().isEmpty()) {
-    // GoType indexType = inferArgumentType(indexExpr);
-    // if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-    // reportSemanticError("array index must be integer, got " +
-    // indexType.getTypeName());
-    // }
-    // }
-    // } else {
-    // reportSemanticError("'" + arrayName + "' is not an array (type: " +
-    // arrayType.getTypeName() + ")");
-    // }
-    // }
-    // } else {
-    // reportSemanticError("undefined variable '" + arrayName + "'");
-    // }
-    // }
-
-    // return super.visitArrayAccessExpr(ctx);
-    // }
+    /**
+     * Processa acesso a arrays (arr[index])
+     */
+    @Override
+    public AST visitArrayAccessExpr(Go_Parser.ArrayAccessExprContext ctx) {
+        int lineNumber = ctx.start.getLine();
+        
+        // Visitar o primeiro expr (nome do array)
+        AST arrayNode = visit(ctx.expr(0));
+        if (arrayNode == null) {
+            reportSemanticError(ctx, "invalid array expression");
+            return new AST(NodeKind.INDEX_NODE, GoType.UNKNOWN);
+        }
+        
+        // Visitar o segundo expr (índice)
+        AST indexNode = visit(ctx.expr(1));
+        if (indexNode == null) {
+            reportSemanticError(ctx, "invalid index expression");
+            return new AST(NodeKind.INDEX_NODE, GoType.UNKNOWN);
+        }
+        
+        String arrayName = arrayNode.text;
+        
+        System.out.println("DEBUG: Array access - name: " + arrayName + ", index: " + indexNode.text);
+        
+        // Verificar se o array existe na VarTable
+        if (!varTable.exists(arrayName)) {
+            reportSemanticError(ctx, "undefined variable '" + arrayName + "'");
+            return new AST(NodeKind.INDEX_NODE, GoType.UNKNOWN);
+        }
+        
+        VarEntry arrayEntry = varTable.lookup(arrayName);
+        GoType arrayType = arrayEntry.getType();
+        
+        System.out.println("DEBUG: Found variable '" + arrayName + "' of type: " + arrayType.getTypeName());
+        
+        // Verificar se é realmente um array
+        if (!arrayType.getTypeName().startsWith("[]")) {
+            reportSemanticError(ctx, "'" + arrayName + "' is not an array (type: " + arrayType.getTypeName() + ")");
+            return new AST(NodeKind.INDEX_NODE, GoType.UNKNOWN);
+        }
+        
+        System.out.println("DEBUG: '" + arrayName + "' is confirmed as array");
+        
+        // Verificar se o índice é do tipo int
+        GoType indexType = indexNode.getAnnotatedType();
+        if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
+            reportSemanticError(ctx, "array index must be integer, got " + indexType.getTypeName());
+        }
+        
+        // Obter informações do array da ArrayTable
+        ArrayInfo arrayInfo = null;
+        if (arrayTable.hasArray(arrayName)) {
+            arrayInfo = arrayTable.getArray(arrayName);
+            System.out.println("DEBUG: Array info from ArrayTable - element type: " + 
+                            arrayInfo.getElementType().getTypeName() + ", size: " + arrayInfo.getSize());
+        }
+        
+        // Determinar o tipo do resultado (tipo do elemento do array)
+        GoType resultType = GoType.UNKNOWN;
+        if (arrayInfo != null) {
+            resultType = arrayInfo.getElementType();
+        } else {
+            // Fallback: extrair tipo do elemento da string do tipo
+            String typeName = arrayType.getTypeName();
+            if (typeName.startsWith("[]")) {
+                String elementTypeName = typeName.substring(2); // Remove "[]"
+                resultType = GoType.fromString(elementTypeName);
+            }
+        }
+        
+        // Criar nó INDEX_NODE na AST
+        AST indexAccessNode = AST.newSubtree(NodeKind.INDEX_NODE, resultType, arrayNode, indexNode);
+        indexAccessNode.setAnnotatedType(resultType);
+        
+        System.out.println("DEBUG: Array access result type: " + resultType.getTypeName());
+        
+        return indexAccessNode;
+    }
 
     // /**
     // * Processa statements break
