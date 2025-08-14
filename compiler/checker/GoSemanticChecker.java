@@ -1014,220 +1014,171 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // /**
     // * Processa assignments simples (x = y)
     // */
-    // @Override
-    // public Void visitSimpleAssignStatement(Go_Parser.SimpleAssignStatementContext
-    // ctx) {
-    // if (ctx.lvalue() == null || ctx.expr() == null) {
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+     @Override
+    public AST visitSimpleAssignStatement(Go_Parser.SimpleAssignStatementContext ctx) {
+        AST lvalueNode = visit(ctx.lvalue());
+        AST rvalueNode = visit(ctx.expr());
 
-    // // Extrair informações usando getText() e parsing simples
-    // String fullLvalue = ctx.lvalue().getText();
-    // String rvalue = ctx.expr().getText();
-    // String varName = null;
-    // boolean isArrayAccess = false;
-    // String indexExpr = null;
+        if (lvalueNode != null && rvalueNode != null) {
+            String varName = lvalueNode.text;
+            GoType lvalueType = lvalueNode.getAnnotatedType();
+            GoType rvalueType = rvalueNode.getAnnotatedType();
+            VarEntry varEntry = varTable.lookup(varName);
 
-    // // Verificar se é acesso a array (formato: var[index])
-    // if (fullLvalue.contains("[") && fullLvalue.contains("]")) {
-    // int bracketIndex = fullLvalue.indexOf("[");
-    // int closeBracketIndex = fullLvalue.indexOf("]");
-    // varName = fullLvalue.substring(0, bracketIndex);
-    // indexExpr = fullLvalue.substring(bracketIndex + 1, closeBracketIndex);
-    // isArrayAccess = true;
-    // } else {
-    // varName = fullLvalue;
-    // }
+            if (varEntry == null) {
+                reportSemanticError(ctx, "cannot assign to undeclared variable '" + varName + "'");
+            } else {
+                if (varEntry.isConstant()) {
+                    reportSemanticError(ctx, "cannot assign to constant '" + varName + "'");
+                }
 
-    // if (varName == null || varName.trim().isEmpty()) {
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+                if (lvalueNode.kind == NodeKind.INDEX_NODE) {
+                    // TODO: Implementar a lógica de verificação para atribuição em arrays aqui.
+                    System.out.println("DEBUG: Array assignment detected but not yet fully implemented.");
+                }
 
-    // // Verificar se a variável existe na VarTable
-    // if (varTable.exists(varName)) {
-    // VarEntry varEntry = varTable.lookup(varName);
-    // if (varEntry != null) {
-    // // Verificar se é uma constante
-    // if (varEntry.isConstant()) {
-    // reportSemanticError(ctx, "cannot assign to constant '" + varName + "'");
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+                if (!areTypesCompatible(rvalueType, lvalueType)) {
+                    reportSemanticError(ctx, "cannot use " + rvalueType.getTypeName() + 
+                                        " as type " + lvalueType.getTypeName() + " in assignment");
+                }
+            }
+        }
+        
+        // --- Construção da AST ---
+        // Cria o nó de atribuição com as subárvores da esquerda e direita como filhos.
+        return AST.assign(lvalueNode, rvalueNode, ctx.start.getLine(), 0);
+    }
 
-    // GoType lvalueType = varEntry.getType();
+    @Override
+    public AST visitIdLvalue(Go_Parser.IdLvalueContext ctx) {
+        String varName = ctx.ID().getText();
+        int line = ctx.start.getLine();
 
-    // // Se é acesso a array, validar e obter tipo do elemento
-    // if (isArrayAccess) {
-    // if (arrayTable.hasArray(varName)) {
-    // ArrayInfo arrayInfo = arrayTable.getArray(varName);
-    // lvalueType = arrayInfo.getElementType();
-    // } else if (lvalueType.isArray()) {
-    // lvalueType = lvalueType.getElementType();
-    // } else {
-    // reportSemanticError(ctx, "'" + varName + "' is not an array");
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+        VarEntry entry = varTable.lookup(varName);
+        if (entry == null) {
+            reportSemanticError(ctx, "undeclared variable: " + varName);
+            // Retorna um nó de erro para não quebrar o resto da análise.
+            AST errorNode = AST.id(varName, line, 0);
+            errorNode.setAnnotatedType(GoType.UNKNOWN);
+            return errorNode;
+        }
 
-    // // Validar tipo do índice
-    // if (indexExpr != null) {
-    // GoType indexType = inferArgumentType(indexExpr);
-    // if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-    // reportSemanticError(ctx, "array index must be integer, got " +
-    // indexType.getTypeName());
-    // }
-    // }
-    // }
+        // Cria o nó do identificador e anota seu tipo a partir da tabela de símbolos.
+        AST idNode = AST.id(varName, line, 0);
+        idNode.setAnnotatedType(entry.getType());
+        return idNode;
+    }
 
-    // // Verificar compatibilidade de tipos
-    // GoType rvalueType = inferArgumentType(rvalue);
-    // if (!areTypesCompatible(rvalueType, lvalueType)) {
-    // reportSemanticError(ctx,
-    // "cannot assign " + rvalueType.getTypeName() +
-    // " to variable '" + varName + "' of type " + lvalueType.getTypeName());
-    // }
-    // }
-    // }
-    // // Verificar se é array puro na ArrayTable
-    // else if (arrayTable.hasArray(varName)) {
-    // if (!isArrayAccess) {
-    // reportSemanticError(ctx, "cannot assign to array '" + varName + "' without
-    // index");
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+    @Override
+    public AST visitIfElseStatement(Go_Parser.IfElseStatementContext ctx) {
+        // Cria o nó principal para a estrutura if.
+        AST ifNode = new AST(NodeKind.IF_NODE, GoType.NO_TYPE);
 
-    // ArrayInfo arrayInfo = arrayTable.getArray(varName);
-    // GoType elementType = arrayInfo.getElementType();
+        // --- 1. Processa a Condição ---
+        // Visita a expressão da condição para obter sua subárvore e tipo.
+        AST conditionNode = visit(ctx.expr());
+        ifNode.addChild(conditionNode); // O primeiro filho é sempre a condição.
 
-    // // Validar tipo do índice
-    // if (indexExpr != null) {
-    // GoType indexType = inferArgumentType(indexExpr);
-    // if (indexType != GoType.INT && indexType != GoType.UNKNOWN) {
-    // reportSemanticError(ctx, "array index must be integer, got " +
-    // indexType.getTypeName());
-    // }
-    // }
+        // Verificação Semântica: A condição de um if deve ser booleana.
+        GoType conditionType = conditionNode.getAnnotatedType();
+        if (conditionType != GoType.BOOL) {
+            reportSemanticError(ctx.expr(), "if condition must be boolean, but has type " + conditionType.getTypeName());
+        }
 
-    // // Verificar compatibilidade de tipos
-    // GoType rvalueType = inferArgumentType(rvalue);
-    // if (!areTypesCompatible(rvalueType, elementType)) {
-    // reportSemanticError(ctx,
-    // "cannot assign " + rvalueType.getTypeName() +
-    // " to array element of type " + elementType.getTypeName());
-    // }
-    // }
-    // // Variável não encontrada
-    // else {
-    // reportSemanticError(ctx, "undefined variable '" + varName + "'");
-    // }
+        // --- 2. Processa o Bloco "Then" ---
+        // O primeiro bloco encontrado é sempre o corpo principal do if.
+        AST thenNode = visit(ctx.block(0)); 
+        ifNode.addChild(thenNode); // O segundo filho é sempre o bloco "then".
 
-    // return super.visitSimpleAssignStatement(ctx);
-    // }
+        // --- 3. Processa a Parte "Else" (se existir) ---
+        if (ctx.ELSE() != null) {
+            AST elseNode = null;
+            if (ctx.ifStmt() != null) {
+                // Caso: else if (...)
+                // Visita recursivamente a próxima declaração if.
+                elseNode = visit(ctx.ifStmt());
+            } else if (ctx.block().size() > 1) {
+                // Caso: else { ... }
+                // Visita o segundo bloco de código.
+                elseNode = visit(ctx.block(1));
+            }
+            
+            if (elseNode != null) {
+                ifNode.addChild(elseNode); // O terceiro filho (opcional) é o bloco "else".
+            }
+        }
+        
+        return ifNode;
+    }
 
-    // /**
-    // * Processa statements if-else
-    // */
-    // @Override
-    // public Void visitIfElseStatement(Go_Parser.IfElseStatementContext ctx) {
-    // System.out.println("DEBUG: IfElseStatement");
-    // // Extrair e validar condição do if
-    // String condition = ctx.expr().getText();
-    // System.out.println("DEBUG: If condition = " + condition);
+    @Override
+    public AST visitForLoopStatement(Go_Parser.ForLoopStatementContext ctx) {
+        // --- Lógica de Controle (Mantida do seu código original) ---
+        varTable.enterScope(); // Laços 'for' criam um novo escopo.
+        loopDepth++;
 
-    // if (condition != null && !condition.trim().isEmpty()) {
-    // GoType conditionType = inferArgumentType(condition);
-    // System.out.println("DEBUG: If condition (inferred) = " +
-    // conditionType.getTypeName());
-    // // Em Go, condições devem ser do tipo bool
-    // if (conditionType != GoType.BOOL && conditionType != GoType.UNKNOWN) {
-    // reportSemanticError(ctx,
-    // "if condition must be boolean, got " + conditionType.getTypeName());
-    // }
-    // }
-    // // Continuar processamento automático dos blocos
-    // super.visitIfElseStatement(ctx);
+        AST forNode = new AST(NodeKind.FOR_CLAUSE_NODE, GoType.NO_TYPE); // Usamos FOR_CLAUSE_NODE para o nó principal
 
-    // return null;
-    // }
+        // A gramática define 3 tipos de 'for'
+        if (ctx.forClause() != null) {
+            // Caso 1: for com cláusula completa (init; cond; post)
+            AST clauseNode = visit(ctx.forClause());
+            // Adiciona os filhos da cláusula (init, cond, post) diretamente ao nó do for
+            for (AST child : clauseNode.getChildren()) {
+                forNode.addChild(child);
+            }
+        } else if (ctx.expr() != null) {
+            // Caso 2: for usado como 'while' (apenas com condição)
+            AST conditionNode = visit(ctx.expr());
+            if (conditionNode.getAnnotatedType() != GoType.BOOL) {
+                reportSemanticError(ctx.expr(), "for condition must be boolean, got " + conditionNode.getAnnotatedType().getTypeName());
+            }
+            // Adiciona placeholders para init e post
+            forNode.addChild(null); // init
+            forNode.addChild(conditionNode);
+            forNode.addChild(null); // post
+        } else {
+            // Caso 3: for infinito (sem cláusula ou condição)
+            // Adiciona placeholders para tudo
+            forNode.addChild(null); // init
+            forNode.addChild(null); // cond
+            forNode.addChild(null); // post
+        }
 
-    // @Override
-    // public Void visitForClauseRule(Go_Parser.ForClauseRuleContext ctx) {
-    // System.out.println("DEBUG: ForClause");
-    // // Primeira cláusula (inicialização)
-    // if (ctx.simpleStmt().size() >= 1 && ctx.simpleStmt(0) != null) {
-    // // Processar a primeira cláusula (inicialização)
-    // String initStmt = ctx.simpleStmt(0).getText();
-    // System.out.println("DEBUG: For init statement = " + initStmt);
-    // visit(ctx.simpleStmt(0));
-    // }
+        // Adiciona o corpo do laço como o último filho
+        AST bodyNode = visit(ctx.block());
+        forNode.addChild(bodyNode);
 
-    // // Segunda cláusula (condição)
-    // if (ctx.expr() != null) {
-    // // Processar expressão de condição
-    // String conditionExpr = ctx.expr().getText();
-    // System.out.println("DEBUG: For condition expression = " + conditionExpr);
+        // --- Fim da Lógica de Controle ---
+        loopDepth--;
+        varTable.exitScope();
 
-    // GoType conditionType = inferArgumentType(conditionExpr);
-    // if (conditionType != GoType.BOOL && conditionType != GoType.UNKNOWN) {
-    // reportSemanticError("for condition must be boolean, got " +
-    // conditionType.getTypeName());
-    // }
+        return forNode;
+    }
 
-    // visit(ctx.expr());
-    // }
+    @Override
+    public AST visitForClauseRule(Go_Parser.ForClauseRuleContext ctx) {
+        // Este método apenas coleta os 3 componentes da cláusula.
+        AST clauseNode = new AST(NodeKind.FOR_CLAUSE_NODE, GoType.NO_TYPE);
 
-    // // Terceira cláusula (pós)
-    // if (ctx.simpleStmt().size() >= 2 && ctx.simpleStmt(1) != null) {
-    // // Processar a segunda cláusula (condição)
-    // String conditionStmt = ctx.simpleStmt(1).getText();
-    // System.out.println("DEBUG: For post statement = " + conditionStmt);
+        // 1. Inicialização (opcional)
+        clauseNode.addChild(ctx.simpleStmt(0) != null ? visit(ctx.simpleStmt(0)) : null);
+        
+        // 2. Condição (opcional)
+        AST conditionNode = null;
+        if (ctx.expr() != null) {
+            conditionNode = visit(ctx.expr());
+            if (conditionNode.getAnnotatedType() != GoType.BOOL) {
+                reportSemanticError(ctx.expr(), "for condition must be boolean, got " + conditionNode.getAnnotatedType().getTypeName());
+            }
+        }
+        clauseNode.addChild(conditionNode);
 
-    // if (conditionStmt.contains("++") || conditionStmt.contains("--")) {
-    // String varName = conditionStmt.substring(0, conditionStmt.length() -
-    // 2).trim();
-    // System.out.println("DEBUG: For post variable = " + varName);
-    // if (varName != null && !varTable.exists(varName)) {
-    // reportSemanticError("undefined variable '" + varName + "' in for post
-    // statement");
-    // }
-    // }
+        // 3. Pós-execução (opcional)
+        clauseNode.addChild(ctx.simpleStmt(1) != null ? visit(ctx.simpleStmt(1)) : null);
 
-    // visit(ctx.simpleStmt(1));
-    // }
-    // return null;
-    // }
-
-    // /**
-    // * Processa statements for (loops)
-    // */
-    // @Override
-    // public Void visitForLoopStatement(Go_Parser.ForLoopStatementContext ctx) {
-    // System.out.println("DEBUG: ForLoopStatement");
-    // // Entrar no loop (incrementar profundidade)
-    // loopDepth++;
-    // varTable.enterScope(); // Entrar em novo escopo para o loop
-
-    // if (ctx.forClause() != null) {
-    // super.visit(ctx.forClause()); // Visitar cláusula do for
-    // } else if (ctx.expr() != null) {
-    // System.out.println("DEBUG: For condition expression = " +
-    // ctx.expr().getText());
-    // GoType conditionType = inferArgumentType(ctx.expr().getText());
-    // if (conditionType != GoType.BOOL && conditionType != GoType.UNKNOWN) {
-    // reportSemanticError("for condition must be boolean, got " +
-    // conditionType.getTypeName());
-    // }
-    // } else {
-    // System.out.println("DEBUG: For loop without condition");
-    // }
-
-    // if (ctx.block() != null) {
-    // super.visit(ctx.block()); // Visitar corpo do loop
-    // }
-
-    // varTable.exitScope(); // Sair do escopo do loop
-    // loopDepth--;
-
-    // return null;
-    // }
+        return clauseNode;
+    }
 
     // /**
     // * Processa acesso a arrays (arr[index])
@@ -1284,38 +1235,53 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // /**
     // * Processa statements break
     // */
-    // @Override
-    // public Void visitBreakStatementRule(Go_Parser.BreakStatementRuleContext ctx)
-    // {
-    // // Verificar se estamos dentro de um loop
-    // if (loopDepth == 0) {
-    // reportSemanticError("break statement not in loop");
-    // }
-    // return null;
-    // }
+    @Override
+    public AST visitBreakStatementRule(Go_Parser.BreakStatementRuleContext ctx) {
+        // Garante que o 'break' só pode ocorrer dentro de um laço.
+        if (loopDepth == 0) {
+            reportSemanticError(ctx, "break statement not in loop");
+        }
+        
+        // Construção da AST:
+        // Cria um nó simples para representar o comando.
+        return new AST(NodeKind.BREAK_NODE, GoType.NO_TYPE);
+    }
+
 
     // /**
     // * Processa statements continue
     // */
-    // @Override
-    // public Void visitContinueStatementRule(Go_Parser.ContinueStatementRuleContext
-    // ctx) {
-    // // Verificar se estamos dentro de um loop
-    // if (loopDepth == 0) {
-    // reportSemanticError("continue statement not in loop");
-    // }
+    @Override
+    public AST visitContinueStatementRule(Go_Parser.ContinueStatementRuleContext ctx) {
+        // Garante que o 'continue' só pode ocorrer dentro de um laço.
+        if (loopDepth == 0) {
+            reportSemanticError(ctx, "continue statement not in loop");
+        }
+        
+        // Construção da AST:
+        // Cria um nó simples para representar o comando.
+        return new AST(NodeKind.CONTINUE_NODE, GoType.NO_TYPE);
+    }
+
 
     // return null;
     // }
 
     // // --- STATEMENTS SIMPLES ---
 
-    // @Override
-    // public Void visitExpressionSimpleStmt(Go_Parser.ExpressionSimpleStmtContext
-    // ctx) {
-    // super.visitExpressionSimpleStmt(ctx);
-    // return null;
-    // }
+    @Override
+    public AST visitExpressionSimpleStmt(Go_Parser.ExpressionSimpleStmtContext ctx) {
+        // Cria o nó que representa um "statement de expressão".
+        AST exprStmtNode = new AST(NodeKind.EXPR_STMT_NODE, GoType.NO_TYPE);
+
+        // Visita a expressão interna para construir sua subárvore.
+        AST innerExprNode = visit(ctx.expr());
+        
+        // Adiciona a subárvore da expressão como filha.
+        exprStmtNode.addChild(innerExprNode);
+
+        return exprStmtNode;
+    }
 
     /**
      * Imprime um relatório da análise semântica
