@@ -130,7 +130,11 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     public AST visitVarDecl(Go_Parser.VarDeclContext ctx) {
         System.out.println("DEBUG: VarDecl Principal");
         AST varDeclNode = new AST(NodeKind.VAR_DECL_NODE, GoType.NO_TYPE);
-        varDeclNode.addChild(super.visitVarDecl(ctx));
+         if (ctx.varSpec() != null) {
+            for (Go_Parser.VarSpecContext specCtx : ctx.varSpec()) {
+                varDeclNode.addChild(visit(specCtx));
+            }
+        }
         return varDeclNode;
     }
 
@@ -299,102 +303,69 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
 
     // // Não está inferindo o tipo da expressão do lado direito, apenas processando
     // // como "unknown"
-    // @Override
-    // public Void visitShortVariableDecl(Go_Parser.ShortVariableDeclContext ctx) {
-    // System.out.println("DEBUG: ShortVariableDecl");
+        @Override
+    public AST visitShortVariableDecl(Go_Parser.ShortVariableDeclContext ctx) {
+        System.out.println("DEBUG: ShortVariableDecl");
+        
+        AST shortDeclNode = AST.newSubtree(NodeKind.SHORT_VAR_DECL_NODE, GoType.NO_TYPE);
+        int lineNumber = ctx.start.getLine();
 
-    // // Extrair identifierList
-    // String[] identifiers = ctx.identifierList().getText().split(",");
-    // for (String id : identifiers) {
-    // System.out.println("DEBUG: identifier = " + id.trim());
-    // }
+        // Pega as listas de identificadores e expressões
+        Go_Parser.IdentifierListContext idListCtx = ctx.identifierList();
+        Go_Parser.ExprListContext exprListCtx = (Go_Parser.ExprListContext) ctx.expressionList();
 
-    // // Extrair número da linha
-    // int lineNumber = ctx.start.getLine();
-    // System.out.println("DEBUG: lineNumber = " + lineNumber);
+        // --- CORREÇÃO APLICADA AQUI ---
+        // Acessa os identificadores e expressões da forma correta
+        String[] identifiers = idListCtx.getText().split(",");
+        java.util.List<Go_Parser.ExprContext> expressions = exprListCtx.expr();
 
-    // // Extrair expressões individuais
-    // Go_Parser.ExprListContext exprListContext = (Go_Parser.ExprListContext)
-    // ctx.expressionList();
-    // List<Go_Parser.ExprContext> expressions = exprListContext.expr();
+        // Validação semântica: verifica se o número de variáveis e valores é o mesmo
+        if (identifiers.length != expressions.size()) {
+            reportSemanticError(ctx, "assignment mismatch: " + identifiers.length + " variables but " + expressions.size() + " values");
+            return shortDeclNode; // Retorna o nó (mesmo que incompleto) para não quebrar a AST
+        }
 
-    // List<String> exprTypes = new ArrayList<>();
+        AST idListNode = new AST(NodeKind.IDENTIFIER_LIST_NODE, GoType.NO_TYPE);
+        shortDeclNode.addChild(idListNode);
 
-    // // Inferir tipo de cada expressão separadamente
-    // for (Go_Parser.ExprContext exprCtx : expressions) {
-    // String exprText = exprCtx.getText();
-    // System.out.println("DEBUG: Individual expression = " + exprText);
+        AST exprListNode = new AST(NodeKind.EXPR_LIST_NODE, GoType.NO_TYPE);
+        shortDeclNode.addChild(exprListNode);
 
-    // String inferredType = inferExpressionType(exprText);
-    // exprTypes.add(inferredType);
-    // }
+        // Processa cada par de identificador e expressão usando um índice
+        for (int i = 0; i < identifiers.length; i++) {
+            String id = identifiers[i].trim(); // Limpa espaços em branco
+            Go_Parser.ExprContext exprCtx = expressions.get(i);
 
-    // System.out.println("DEBUG: ExprTypes: " + exprTypes);
+            AST exprNode = visit(exprCtx);
+            exprListNode.addChild(exprNode);
 
-    // // Processar cada variável
-    // for (int i = 0; i < identifiers.length; i++) {
-    // String id = identifiers[i].trim();
-    // String inferredType = (i < exprTypes.size()) ? exprTypes.get(i) : "unknown";
+            GoType varType = exprNode.getAnnotatedType();
+            if (varType == null) { 
+                varType = inferArgumentType(exprCtx.getText());
+            }
 
-    // if (id != null && !id.isEmpty()) {
-    // GoType varType = GoType.fromString(inferredType);
-    // System.out.println("DEBUG: Adding short variable: " + id + " of type " +
-    // varType.getTypeName());
+            System.out.println("DEBUG: Adding short variable: " + id + " of inferred type " + varType.getTypeName());
+            
+            if (!varTable.addVariable(id, varType, lineNumber)) {
+                VarEntry existing = varTable.lookup(id);
+                if (existing != null && varTable.existsInCurrentScope(id)) {
+                    reportSemanticError(
+                            "variable '" + id + "' already declared at line " + existing.getDeclarationLine());
+                }
+            } else {
+                 VarEntry varEntry = varTable.lookup(id);
+                 if (varEntry != null) {
+                    allProcessedVariables.add(varEntry);
+                 }
+            }
+            
+            AST idNode = AST.id(id, lineNumber, 0);
+            idNode.setAnnotatedType(varType);
+            idListNode.addChild(idNode);
+        }
 
-    // // Tentar adicionar a variável à tabela
-    // if (!varTable.addVariable(id, varType, lineNumber)) {
-    // VarEntry existing = varTable.lookup(id);
-    // if (existing != null && varTable.existsInCurrentScope(id)) {
-    // reportSemanticError(
-    // "variable '" + id + "' already declared at line " +
-    // existing.getDeclarationLine());
-    // }
-    // } else {
-    // // Adicionar à lista de variáveis processadas para o relatório
-    // VarEntry varEntry = varTable.lookup(id);
-    // if (varEntry != null) {
-    // allProcessedVariables.add(varEntry);
-    // }
-
-    // // Adicionar também à tabela de tipos para referência
-    // typeTable.addVariable(id, varType);
-
-    // // Se for um array, adicionar à ArrayTable
-    // processArrayDeclaration(id, inferredType, lineNumber);
-    // }
-    // }
-    // }
-
-    // return null;
-    // }
-
-    // /**
-    // * Infere tipo de uma expressão individual
-    // */
-    // private String inferExpressionType(String exprText) {
-    // if (exprText == null || exprText.trim().isEmpty()) {
-    // return "unknown";
-    // }
-
-    // exprText = exprText.trim();
-
-    // // Array/slice literals
-    // if (exprText.matches("\\[\\]\\w+\\{.*\\}")) {
-    // if (exprText.startsWith("[]int{"))
-    // return "[]int";
-    // if (exprText.startsWith("[]string{"))
-    // return "[]string";
-    // if (exprText.startsWith("[]bool{"))
-    // return "[]bool";
-    // if (exprText.startsWith("[]float"))
-    // return "[]float64";
-    // // Adicionar outros tipos conforme necessário
-    // }
-
-    // // Usar inferArgumentType existente para outros casos
-    // GoType type = inferArgumentType(exprText);
-    // return type.getTypeName();
-    // }
+        return shortDeclNode;
+    }
 
     // /**
     // * Processa composite literals (arrays/slices)
@@ -552,40 +523,85 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     // }
 
     // // --- LITERAIS ---
-    // @Override
-    // public Void visitIdExpr(Go_Parser.IdExprContext ctx) {
-    // return super.visitIdExpr(ctx);
-    // }
+    @Override
+    public AST visitIdExpr(Go_Parser.IdExprContext ctx) {
+        String idName = ctx.ID().getText();
+        int line = ctx.start.getLine();
+        
+        // Semântica: Verificar se a variável foi declarada.
+        if (!varTable.exists(idName)) {
+            reportSemanticError(ctx, "undefined variable '" + idName + "'");
+        }
+        
+        // AST: Cria um nó para o identificador usando a factory correta. 
+        AST idNode = AST.id(idName, line, 0);
 
-    // @Override
-    // public Void visitIntLiteral(Go_Parser.IntLiteralContext ctx) {
-    // return super.visitIntLiteral(ctx);
-    // }
+        // Anota o tipo no nó da AST para uso futuro.
+        VarEntry entry = varTable.lookup(idName);
+        if (entry != null) {
+            idNode.setAnnotatedType(entry.getType());
+        } else {
+            idNode.setAnnotatedType(GoType.UNKNOWN);
+        }
+        
+        return idNode;
+    }
 
-    // @Override
-    // public Void visitFloatLiteral(Go_Parser.FloatLiteralContext ctx) {
-    // return super.visitFloatLiteral(ctx);
-    // }
+    @Override
+    public AST visitIntLiteral(Go_Parser.IntLiteralContext ctx) {
+        String text = ctx.getText();
+        int line = ctx.start.getLine();
+        // Converte o texto para inteiro antes de passar para a factory.
+        int value = Integer.parseInt(text);
+        // AST: Cria um nó para o literal inteiro usando a factory correta. 
+        return AST.intLit(value, line, 0);
+    }
 
-    // @Override
-    // public Void visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
-    // return super.visitStringLiteral(ctx);
-    // }
+    @Override
+    public AST visitFloatLiteral(Go_Parser.FloatLiteralContext ctx) {
+        String text = ctx.getText();
+        int line = ctx.start.getLine();
+        // Converte o texto para float antes de passar para a factory.
+        float value = Float.parseFloat(text);
+        // AST: Cria um nó para o literal float usando a factory correta. 
+        return AST.realLit(value, line, 0);
+    }
 
-    // @Override
-    // public Void visitTrueLiteral(Go_Parser.TrueLiteralContext ctx) {
-    // return super.visitTrueLiteral(ctx);
-    // }
+    @Override
+    public AST visitStringLiteral(Go_Parser.StringLiteralContext ctx) {
+        String textWithQuotes = ctx.getText();
+        int line = ctx.start.getLine();
+        
+        // Semântica: Adiciona a string (com aspas) à tabela de strings.
+        stringTable.addString(textWithQuotes);
 
-    // @Override
-    // public Void visitFalseLiteral(Go_Parser.FalseLiteralContext ctx) {
-    // return super.visitFalseLiteral(ctx);
-    // }
+        // Remove as aspas para armazenar o valor puro na AST.
+        String value = textWithQuotes.substring(1, textWithQuotes.length() - 1);
+        
+        // AST: Cria um nó para o literal string usando a factory correta. 
+        return AST.strLit(value, line, 0);
+    }
 
-    // @Override
-    // public Void visitParenthesizedExpr(Go_Parser.ParenthesizedExprContext ctx) {
-    // return super.visitParenthesizedExpr(ctx);
-    // }
+    @Override
+    public AST visitTrueLiteral(Go_Parser.TrueLiteralContext ctx) {
+        int line = ctx.start.getLine();
+        // AST: Cria um nó para o literal booleano 'true' usando a factory correta. 
+        return AST.boolLit(true, line, 0);
+    }
+
+    @Override
+    public AST visitFalseLiteral(Go_Parser.FalseLiteralContext ctx) {
+        int line = ctx.start.getLine();
+        // AST: Cria um nó para o literal booleano 'false' usando a factory correta. 
+        return AST.boolLit(false, line, 0);
+    }
+
+    @Override
+    public AST visitParenthesizedExpr(Go_Parser.ParenthesizedExprContext ctx) {
+        // Para expressões com parênteses, simplesmente visitamos a expressão interna.
+        // Os parênteses definem a precedência na análise, mas não precisam de um nó próprio na AST.
+        return visit(ctx.expr());
+    }
 
     // /**
     // * Processa chamadas de função
