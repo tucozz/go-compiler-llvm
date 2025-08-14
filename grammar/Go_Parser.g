@@ -145,14 +145,14 @@ expr:
 ;
 
 primaryExpr:
-    ID                                                                      #IdExpr
+    functionCall                                                            #FuncCallExpr
+    | ID                                                                    #IdExpr
     | INT_LIT                                                               #IntLiteral
     | FLOAT_LIT                                                             #FloatLiteral
     | STRING_LIT                                                            #StringLiteral
     | KW_TRUE                                                               #TrueLiteral
     | KW_FALSE                                                              #FalseLiteral
     | PAR_INT expr PAR_END                                                  #ParenthesizedExpr
-    | functionCall                                                          #FuncCallExpr
     | compositeLiteral                                                      #CompositeLiteralExpr
     | typeCast                                                              #TypeCastExpr
 ;

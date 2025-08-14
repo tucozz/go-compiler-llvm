@@ -882,8 +882,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
             }
         }
 
-        // Se a função não existe, verificar se é built-in e adicioná-la
+        // Verificar se a função existe na tabela de funções PRIMEIRO
         if (!functionTable.hasFunction(functionName)) {
+            // Se não existe, verificar se é built-in
             if (isBuiltInFunction(functionName)) {
                 functionTable.addBuiltInFunctionIfNeeded(functionName);
             } else {
@@ -1126,10 +1127,12 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
             AST exprNode = visit(ctx.expr());
             returnNode.addChild(exprNode);
             
-            // Verificação semântica: verificar compatibilidade de tipos
+            // Obter o tipo diretamente do nó AST visitado
             GoType returnType = exprNode.getAnnotatedType();
-            if (returnType == null) {
-                returnType = inferArgumentType(ctx.expr().getText());
+            
+            // Se o tipo ainda for null ou unknown, tentar inferir como fallback
+            if (returnType == null || returnType == GoType.UNKNOWN) {
+                returnType = inferReturnExpressionType(ctx.expr());
             }
             
             System.out.println("DEBUG: Return Expression Type = " + returnType.getTypeName());
@@ -1157,6 +1160,39 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
         
         return returnNode;
+    }
+
+    /**
+     * Método auxiliar para inferir tipo de expressões de retorno
+     * Especialmente útil para chamadas de função
+     */
+    private GoType inferReturnExpressionType(Go_Parser.ExprContext ctx) {
+        if (ctx == null) {
+            return GoType.UNKNOWN;
+        }
+        
+        // Verificar se é uma chamada de função através do texto
+        String exprText = ctx.getText();
+        
+        // Padrão simples para detectar chamada de função: nome(argumentos)
+        if (exprText.contains("(") && exprText.contains(")")) {
+            int parenIndex = exprText.indexOf('(');
+            if (parenIndex > 0) {
+                String functionName = exprText.substring(0, parenIndex).trim();
+                
+                // Verificar se a função existe na tabela
+                if (functionTable.hasFunction(functionName)) {
+                    FunctionInfo funcInfo = functionTable.getFunction(functionName);
+                    if (funcInfo != null) {
+                        System.out.println("DEBUG: Function " + functionName + " has return type " + funcInfo.getReturnType().getTypeName());   
+                        return funcInfo.getReturnType();
+                    }
+                }
+            }
+        }
+        
+        // Para outros tipos de expressão, usar o método existente
+        return inferArgumentType(ctx.getText());
     }
 
     // --- STATEMENTS DE CONTROLE ---
