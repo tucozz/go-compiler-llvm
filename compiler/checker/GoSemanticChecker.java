@@ -146,47 +146,60 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
 
     // // --- ESPECIFICAÇÕES ---
 
-    // // Regra identifierList (typeSpec)? ASSIGN expressionList
+   // Regra identifierList (typeSpec)? ASSIGN expressionList
     @Override
     public AST visitConstSpecification(Go_Parser.ConstSpecificationContext ctx) {
         System.out.println("DEBUG: ConstSpec");
         AST constSpecNode = new AST(NodeKind.CONST_SPEC_NODE, GoType.NO_TYPE);
         int lineNumber = ctx.start.getLine();
 
-        // Extrair identificadores
         String[] identifiers = ctx.identifierList().getText().split(",");
+        List<Go_Parser.ExprContext> expressions = ((Go_Parser.ExprListContext)ctx.expressionList()).expr();
 
-        // Extrair tipo (opcional para constantes, mas vamos processá-lo se existir)
-        GoType constType = GoType.UNKNOWN; // Tipo padrão se não especificado
-        if (ctx.typeSpec() != null) {
-            constType = GoType.fromString(ctx.typeSpec().getText());
+        // Verifica se o número de identificadores e expressões é o mesmo
+        if (identifiers.length != expressions.size()) {
+            reportSemanticError(ctx, "const declaration requires one value per identifier");
+            return constSpecNode;
         }
 
-        // Adicionar constantes à tabela de símbolos e nós à AST
-        for (String id : identifiers) {
-            id = id.trim();
-            if (!id.isEmpty()) {
-                // Tenta adicionar a constante à tabela
-                if (!varTable.addConstant(id, constType, lineNumber)) {
-                    VarEntry existing = varTable.lookup(id);
-                    if (existing != null && varTable.existsInCurrentScope(id)) {
-                        reportSemanticError(ctx,
-                                "constant '" + id + "' already declared at line " + existing.getDeclarationLine());
-                    }
+        for (int i = 0; i < identifiers.length; i++) {
+            String id = identifiers[i].trim();
+            if (id.isEmpty()) continue;
+
+            // 1. Visita a expressão primeiro para inferir seu tipo
+            AST exprNode = visit(expressions.get(i));
+            GoType inferredType = exprNode.getAnnotatedType();
+            
+            // 2. Verifica se um tipo foi declarado explicitamente e se é compatível
+            if (ctx.typeSpec() != null) {
+                GoType declaredType = GoType.fromString(ctx.typeSpec().getText());
+                if (!areTypesCompatible(inferredType, declaredType)) {
+                    reportSemanticError(expressions.get(i), "cannot use " + inferredType.getTypeName() + 
+                                        " as type " + declaredType.getTypeName() + " in const declaration");
                 }
-                // Adiciona o nó do identificador à AST
-                constSpecNode.addChild(AST.id(id, lineNumber, 0));
+                inferredType = declaredType; // O tipo declarado tem precedência
             }
+
+            // 3. Adiciona a constante à tabela com o tipo correto
+            if (!varTable.addConstant(id, inferredType, lineNumber)) {
+                VarEntry existing = varTable.lookup(id);
+                if (existing != null && varTable.existsInCurrentScope(id)) {
+                    reportSemanticError(ctx, "constant '" + id + "' already declared at line " + existing.getDeclarationLine());
+                }
+            }
+
+            // 4. Constrói a AST
+            AST idNode = AST.id(id, lineNumber, 0);
+            idNode.setAnnotatedType(inferredType);
+            constSpecNode.addChild(idNode);
         }
         
-        // Processar a lista de expressões (valores da constante)
-        if (ctx.expressionList() != null) {
-            AST exprListNode = new AST(NodeKind.EXPR_LIST_NODE, GoType.NO_TYPE);
-            constSpecNode.addChild(exprListNode);
-            
-            for (Go_Parser.ExprContext exprCtx : ((Go_Parser.ExprListContext)ctx.expressionList()).expr()) {
-                exprListNode.addChild(visit(exprCtx));
-            }
+        // Adiciona um nó para a lista de expressões na AST
+        AST exprListNode = new AST(NodeKind.EXPR_LIST_NODE, GoType.NO_TYPE);
+        constSpecNode.addChild(exprListNode);
+        for (Go_Parser.ExprContext exprCtx : expressions) {
+            // Re-visita ou reutiliza o nó já visitado. Re-visitar é mais simples.
+            exprListNode.addChild(visit(exprCtx));
         }
 
         return constSpecNode;
@@ -923,81 +936,70 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
     }
 
-    /**
-     * Processa chamadas de função
+     /**
+     * Processa chamadas de função, com tratamento especial para a função nativa 'println'.
      */
     @Override
     public AST visitCallExpression(Go_Parser.CallExpressionContext ctx) {
         String functionName = ctx.ID().getText();
-        int lineNumber = ctx.start.getLine();
-
-        // Criar nó da função (identificador)
-        AST functionNode = AST.id(functionName, lineNumber, 0);
-
-        // Criar lista de argumentos
-        List<AST> arguments = new ArrayList<>();
+        AST callNode = new AST(NodeKind.CALL_NODE, GoType.NO_TYPE);
         
-        // Se há argumentos, processá-los
-        if (ctx.expressionList() != null) {
-            Go_Parser.ExprListContext exprListContext = (Go_Parser.ExprListContext) ctx.expressionList();
-            List<Go_Parser.ExprContext> expressions = exprListContext.expr();
+        // O primeiro filho do nó de chamada é sempre o nome da função.
+        AST funcIdNode = AST.id(functionName, ctx.ID().getSymbol().getLine(), 0);
+        callNode.addChild(funcIdNode);
 
-            for (Go_Parser.ExprContext exprCtx : expressions) {
-                AST argNode = visit(exprCtx);
-                if (argNode != null) {
-                    arguments.add(argNode);
+        // --- Lógica de Tratamento Especial para 'println' ---
+        if (functionName.equals("println")) {
+            // Para println, aceitamos qualquer número de argumentos.
+            // Apenas visitamos cada expressão de argumento para garantir que ela seja semanticamente válida.
+            if (ctx.expressionList() != null) {
+                Go_Parser.ExprListContext exprList = (Go_Parser.ExprListContext) ctx.expressionList();
+                for (Go_Parser.ExprContext exprCtx : exprList.expr()) {
+                    callNode.addChild(visit(exprCtx));
                 }
             }
-        }
+            // println não tem tipo de retorno.
+            callNode.setAnnotatedType(GoType.VOID);
 
-        // Verificar se a função existe na tabela de funções PRIMEIRO
-        if (!functionTable.hasFunction(functionName)) {
-            // Se não existe, verificar se é built-in
-            if (isBuiltInFunction(functionName)) {
-                functionTable.addBuiltInFunctionIfNeeded(functionName);
-            } else {
-                reportSemanticError(ctx, "undefined function '" + functionName + "'");
-            }
-        }
-
-        // Se agora a função existe, validar argumentos
-        GoType returnType = GoType.UNKNOWN;
-        if (functionTable.hasFunction(functionName)) {
-            // Validar número de argumentos
+        } else {
+            // --- Lógica Padrão para Funções Definidas pelo Usuário ---
             FunctionInfo funcInfo = functionTable.getFunction(functionName);
-            if (funcInfo != null) {
-                List<GoType> expectedParamTypes = funcInfo.getParameterTypes();
-                returnType = funcInfo.getReturnType();
+            if (funcInfo == null) {
+                reportSemanticError(ctx, "undefined function '" + functionName + "'");
+                callNode.setAnnotatedType(GoType.UNKNOWN); // Anota com erro
+                return callNode;
+            }
 
-                if (arguments.size() != expectedParamTypes.size()) {
-                    reportSemanticError(ctx,
-                        "function '" + functionName + "' expects " + expectedParamTypes.size() +
-                        " arguments, got " + arguments.size());
-                } else {
-                    // Validar tipos dos argumentos
-                    for (int i = 0; i < arguments.size(); i++) {
-                        AST argNode = arguments.get(i);
-                        GoType expectedType = expectedParamTypes.get(i);
-                        GoType argType = argNode.getAnnotatedType();
-                        
-                        if (argType == null) {
-                            argType = GoType.UNKNOWN;
-                        }
+            // Validar número de argumentos
+            List<Go_Parser.ExprContext> passedArgs = new ArrayList<>();
+            if (ctx.expressionList() != null) {
+                passedArgs = ((Go_Parser.ExprListContext)ctx.expressionList()).expr();
+            }
 
-                        if (!areTypesCompatible(argType, expectedType)) {
-                            reportSemanticError(ctx,
-                                "argument " + (i + 1) + " to '" + functionName +
-                                "': cannot convert " + argType.getTypeName() +
-                                " to " + expectedType.getTypeName());
-                        }
+            if (passedArgs.size() != funcInfo.getParameterTypes().size()) {
+                reportSemanticError(ctx, "function '" + functionName + "' expects " + 
+                                    funcInfo.getParameterTypes().size() + " arguments, but got " + passedArgs.size());
+            } else {
+                // Validar tipos dos argumentos
+                for (int i = 0; i < passedArgs.size(); i++) {
+                    AST argNode = visit(passedArgs.get(i));
+                    callNode.addChild(argNode);
+                    
+                    GoType expectedType = funcInfo.getParameterTypes().get(i);
+                    GoType actualType = argNode.getAnnotatedType();
+
+                    if (!areTypesCompatible(actualType, expectedType)) {
+                        reportSemanticError(passedArgs.get(i), "cannot use " + actualType.getTypeName() + 
+                                            " as type " + expectedType.getTypeName() + 
+                                            " in argument to '" + functionName + "'");
                     }
                 }
             }
+            // Anota o nó de chamada com o tipo de retorno da função.
+            callNode.setAnnotatedType(funcInfo.getReturnType());
+            funcIdNode.setAnnotatedType(funcInfo.getReturnType());
         }
 
-        // Criar e retornar o nó da chamada de função
-        AST callNode = AST.call(functionNode, arguments, lineNumber, 0);
-        callNode.setAnnotatedType(returnType);
         return callNode;
     }
 

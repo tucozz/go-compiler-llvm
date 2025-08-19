@@ -13,6 +13,7 @@ import Go_Parser.Go_Parser;
 import compiler.ast.AST;
 import compiler.ast.ASTPrinter;
 import compiler.checker.GoSemanticChecker;
+import compiler.interpreter.GoInterpreter; // <-- IMPORT ADICIONADO
 
 public class Main {
 
@@ -59,7 +60,7 @@ public class Main {
                 System.err.println("\nRESULTADO: Compilação falhou devido a erros sintáticos.");
                 return;
             } else {
-                // 3. IMPRESSÃO DA AST
+                // 4. IMPRESSÃO DA AST
                 System.out.println("\n--------------------------------------------------");
                 System.out.println(">>> Gerando Abstract Syntax Tree (AST)...");
                 if (ast != null) {
@@ -73,7 +74,14 @@ public class Main {
                     System.out.println("A AST não foi gerada devido a erros anteriores.");
                 }
 
-                System.out.println("RESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado.");
+                // --- 5. EXECUÇÃO DO INTERPRETADOR ---
+                System.out.println(">>> Executando o interpretador...");
+                GoInterpreter interpreter = new GoInterpreter();
+                interpreter.execute(ast);
+                System.out.println(">>> Execução concluída.");
+                // --- FIM DA EXECUÇÃO ---
+
+                System.out.println("\nRESULTADO: Compilação concluída com sucesso! Nenhum erro encontrado.");
                 return;
             }
 
