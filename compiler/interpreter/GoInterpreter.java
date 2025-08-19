@@ -77,6 +77,7 @@ public class GoInterpreter {
             case FUNC_DECL_NODE:    visitFuncDeclNode(node); break;
             case CALL_NODE:         visitCallNode(node); break;
             case RETURN_NODE:       visitReturnNode(node); break;
+            case TYPE_CONV_NODE:    visitTypeConvNode(node); break;
             case BREAK_NODE:        throw new BreakException();
             case CONTINUE_NODE:     throw new ContinueException();
             default:
@@ -336,7 +337,7 @@ public class GoInterpreter {
             visit(bodyNode);
         } catch (ReturnException e) {
             if (e.returnValue != null) {
-                GoType returnType = funcDeclNode.getChild(2).getAnnotatedType();
+                GoType returnType = funcDeclNode.getChild(2).type;
                 if (returnType == GoType.INT) stack.pushInt((Integer) e.returnValue);
                 else if (returnType == GoType.FLOAT64) stack.pushFloat((Float) e.returnValue);
                 else if (returnType == GoType.BOOL) stack.pushBool((Boolean) e.returnValue);
@@ -357,6 +358,35 @@ public class GoInterpreter {
             else if (returnType == GoType.STRING) returnValue = stack.popString();
         }
         throw new ReturnException(returnValue);
+    }
+    private void visitTypeConvNode(AST node) {
+        // Visit the child expression first to get its value on the stack
+        visit(node.getChild(0));
+        
+        // Get the source type from the child and target type from the node
+        GoType sourceType = node.getChild(0).getAnnotatedType();
+        GoType targetType = node.type;
+        
+        // Perform the type conversion
+        if (sourceType == GoType.INT && targetType == GoType.FLOAT64) {
+            int intValue = stack.popInt();
+            stack.pushFloat((float) intValue);
+        } else if (sourceType == GoType.FLOAT64 && targetType == GoType.INT) {
+            float floatValue = stack.popFloat();
+            stack.pushInt((int) floatValue);
+        } else if (sourceType == GoType.INT && targetType == GoType.STRING) {
+            int intValue = stack.popInt();
+            stack.pushString(String.valueOf(intValue));
+        } else if (sourceType == GoType.FLOAT64 && targetType == GoType.STRING) {
+            float floatValue = stack.popFloat();
+            stack.pushString(String.valueOf(floatValue));
+        } else if (sourceType == GoType.BOOL && targetType == GoType.STRING) {
+            boolean boolValue = stack.popBool();
+            stack.pushString(String.valueOf(boolValue));
+        } else {
+            // For now, if no conversion is needed or unsupported, just leave the value as is
+            // This handles cases where source and target types are the same
+        }
     }
     private boolean isBuiltIn(String funcName) {
         return funcName.equals("println");
