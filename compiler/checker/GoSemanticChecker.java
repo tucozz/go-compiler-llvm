@@ -40,6 +40,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         this.varTable = new VarTable();
         this.stringTable = new StrTable();
         this.functionTable = new FunctionTable();
+        this.functionTable.addBuiltInFunctions();
         this.arrayTable = new ArrayTable();
         this.typeTable = new TypeTable();
         this.foundSemanticErrors = false;
@@ -949,7 +950,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         callNode.addChild(funcIdNode);
 
         // --- Lógica de Tratamento Especial para 'println' ---
-        if (functionName.equals("println")) {
+        if (isBuiltInFunction(functionName)) {
             // Para println, aceitamos qualquer número de argumentos.
             // Apenas visitamos cada expressão de argumento para garantir que ela seja semanticamente válida.
             if (ctx.expressionList() != null) {

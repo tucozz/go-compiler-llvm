@@ -17,36 +17,32 @@ public class FunctionTable {
     }
 
     /**
-     * Adiciona uma função built-in se ela não existir ainda
+     * Adiciona funções built-in padrão
      */
-    public void addBuiltInFunctionIfNeeded(String functionName) {
-        if (functions.containsKey(functionName)) {
-            return; // Já existe
-        }
-        
-        switch (functionName) {
-            case "println":
-                List<String> printlnParamNames = new ArrayList<>();
-                List<GoType> printlnParamTypes = new ArrayList<>();
-                printlnParamNames.add("args");
-                printlnParamTypes.add(GoType.STRING);
-                addFunction("println", printlnParamNames, printlnParamTypes, GoType.VOID, 0);
-                markAsDefined("println");
-                break;
-                
-            case "len":
-                List<String> lenParamNames = new ArrayList<>();
-                List<GoType> lenParamTypes = new ArrayList<>();
-                lenParamNames.add("obj");
-                lenParamTypes.add(GoType.STRING);
-                addFunction("len", lenParamNames, lenParamTypes, GoType.INT, 0);
-                markAsDefined("len");
-                break;
-                
-            default:
-                // Função built-in desconhecida - não fazer nada
-                break;
-        }
+    public void addBuiltInFunctions() {
+        // Função println
+        List<String> printlnParamNames = new ArrayList<>();
+        List<GoType> printlnParamTypes = new ArrayList<>();
+        printlnParamNames.add("args");
+        printlnParamTypes.add(GoType.STRING);
+        addFunction("println", printlnParamNames, printlnParamTypes, GoType.VOID, 0);
+        markAsDefined("println");
+
+        // Função len
+        List<String> lenParamNames = new ArrayList<>();
+        List<GoType> lenParamTypes = new ArrayList<>();
+        lenParamNames.add("obj");
+        lenParamTypes.add(GoType.STRING);
+        addFunction("len", lenParamNames, lenParamTypes, GoType.INT, 0);
+        markAsDefined("len");
+
+        // Função scanln
+        List<String> scanfParamNames = new ArrayList<>();
+        List<GoType> scanfParamTypes = new ArrayList<>();
+        scanfParamNames.add("format");
+        scanfParamTypes.add(GoType.STRING);
+        addFunction("scanln", scanfParamNames, scanfParamTypes, GoType.INT, 0);
+        markAsDefined("scanln");
     }
     
     /**
