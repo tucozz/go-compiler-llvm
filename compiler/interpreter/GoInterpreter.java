@@ -78,6 +78,7 @@ public class GoInterpreter {
             case CALL_NODE:         visitCallNode(node); break;
             case RETURN_NODE:       visitReturnNode(node); break;
             case TYPE_CONV_NODE:    visitTypeConvNode(node); break;
+            case INC_DEC_STMT_NODE: visitIncDecStmtNode(node); break;
             case BREAK_NODE:        throw new BreakException();
             case CONTINUE_NODE:     throw new ContinueException();
             default:
@@ -292,10 +293,11 @@ public class GoInterpreter {
                 }
                 visit(body);
                 visit(post);
+
             } catch (BreakException e) {
                 break;
             } catch (ContinueException e) {
-                visit(post);
+                                visit(post);
             }
         }
         memory.exitScope();
@@ -388,6 +390,36 @@ public class GoInterpreter {
             // This handles cases where source and target types are the same
         }
     }
+    
+    /**
+     * Processa statements de incremento/decremento (i++, i--)
+     */
+    private void visitIncDecStmtNode(AST node) {
+        // O primeiro filho é o lvalue (variável)
+        AST lvalueNode = node.getChild(0);
+        String varName = lvalueNode.text;
+        
+        // O segundo filho contém o operador (++ ou --)
+        AST operatorNode = node.getChild(1);
+        boolean isIncrement = "++".equals(operatorNode.text);
+        
+        // Buscar o valor atual da variável
+        Object currentValue = memory.fetch(varName);
+        GoType varType = lvalueNode.getAnnotatedType();
+        
+        if (varType == GoType.INT) {
+            int currentInt = (Integer) currentValue;
+            int newValue = isIncrement ? currentInt + 1 : currentInt - 1;
+            memory.update(varName, newValue);
+        } else if (varType == GoType.FLOAT64) {
+            float currentFloat = (Float) currentValue;
+            float newValue = isIncrement ? currentFloat + 1.0f : currentFloat - 1.0f;
+            memory.update(varName, newValue);
+        } else {
+            System.err.println("Erro: incremento/decremento em tipo não numérico: " + varType);
+        }
+    }
+    
     private boolean isBuiltIn(String funcName) {
         return funcName.equals("println");
     }

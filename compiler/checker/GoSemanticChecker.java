@@ -1550,6 +1550,51 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
     }
 
     /**
+     * Processa statements de incremento e decremento (i++, i--)
+     */
+    @Override
+    public AST visitIncDecOperationStatement(Go_Parser.IncDecOperationStatementContext ctx) {
+        // Obter a variável (lvalue)
+        AST lvalueNode = visit(ctx.lvalue());
+        if (lvalueNode == null) {
+            reportSemanticError(ctx, "invalid lvalue in increment/decrement statement");
+            return new AST(NodeKind.INC_DEC_STMT_NODE, GoType.NO_TYPE);
+        }
+
+        // Verificar se a variável existe e é numérica
+        String varName = lvalueNode.text;
+        VarEntry varEntry = varTable.lookup(varName);
+        if (varEntry == null) {
+            reportSemanticError(ctx, "undefined variable '" + varName + "'");
+            return new AST(NodeKind.INC_DEC_STMT_NODE, GoType.NO_TYPE);
+        }
+
+        if (varEntry.isConstant()) {
+            reportSemanticError(ctx, "cannot modify constant '" + varName + "'");
+            return new AST(NodeKind.INC_DEC_STMT_NODE, GoType.NO_TYPE);
+        }
+
+        GoType varType = varEntry.getType();
+        if (!varType.isNumeric()) {
+            reportSemanticError(ctx, "invalid operation: increment/decrement on non-numeric type " + varType.getTypeName());
+            return new AST(NodeKind.INC_DEC_STMT_NODE, GoType.NO_TYPE);
+        }
+
+        // Determinar se é incremento (++) ou decremento (--)
+        boolean isIncrement = ctx.INC() != null;
+
+        // Criar nó AST para incremento/decremento
+        AST incDecNode = new AST(NodeKind.INC_DEC_STMT_NODE, GoType.NO_TYPE);
+        incDecNode.addChild(lvalueNode);
+        
+        // Adicionar um nó filho especial para indicar o tipo de operação
+        AST operatorNode = AST.id(isIncrement ? "++" : "--", ctx.start.getLine(), 0);
+        incDecNode.addChild(operatorNode);
+
+        return incDecNode;
+    }
+
+    /**
      * Imprime um relatório da análise semântica
      */
     public void printReport() {
