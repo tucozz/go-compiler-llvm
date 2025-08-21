@@ -22,12 +22,13 @@ public class StrTable {
      * Se já existir, retorna a entrada existente.
      */
     public StrEntry addString(String value) {
-        if (table.containsKey(value)) {
-            return table.get(value);
+        String str = value.replace("\"", "");
+        if (table.containsKey(str)) {
+            return table.get(str);
         }
-        
-        StrEntry newEntry = new StrEntry(value, nextId.getAndIncrement());
-        table.put(value, newEntry);
+
+        StrEntry newEntry = new StrEntry(str, nextId.getAndIncrement());
+        table.put(str, newEntry);
         return newEntry;
     }
 
