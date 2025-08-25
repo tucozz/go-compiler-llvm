@@ -74,6 +74,7 @@ public class GoInterpreter {
             case UNARY_MINUS_NODE:  visitUnaryMinusNode(node); break;
             case IF_NODE:           visitIfNode(node); break;
             case FOR_CLAUSE_NODE:   visitForClauseNode(node); break;
+            case FOR_COND_NODE:     visitForCondNode(node); break;
             case FUNC_DECL_NODE:    visitFuncDeclNode(node); break;
             case CALL_NODE:         visitCallNode(node); break;
             case RETURN_NODE:       visitReturnNode(node); break;
@@ -280,28 +281,132 @@ public class GoInterpreter {
     }
     private void visitForClauseNode(AST node) {
         memory.enterScope();
-        AST init = node.getChild(0);
-        AST cond = node.getChild(1);
-        AST post = node.getChild(2);
-        AST body = node.getChild(3);
-        visit(init);
-        while (true) {
-            try {
-                if (cond != null) {
-                    visit(cond);
-                    if (!stack.popBool()) break;
-                }
-                visit(body);
-                visit(post);
 
-            } catch (BreakException e) {
-                break;
-            } catch (ContinueException e) {
-                                visit(post);
+        if (node.getChildCount() == 4) {
+            // Identify which child is which based on node types
+            AST init = null, cond = null, post = null, body = null;
+            
+            for (int i = 0; i < node.getChildCount(); i++) {
+                AST child = node.getChild(i);
+                if (child == null) continue;
+                
+                if (child.kind == NodeKind.BLOCK_NODE) {
+                    body = child;
+                } else if (child.kind == NodeKind.LESS_NODE || 
+                          child.kind == NodeKind.GREATER_NODE ||
+                          child.kind == NodeKind.LESS_EQ_NODE ||
+                          child.kind == NodeKind.GREATER_EQ_NODE ||
+                          child.kind == NodeKind.EQUAL_NODE ||
+                          child.kind == NodeKind.NOT_EQUAL_NODE ||
+                          child.kind == NodeKind.ID_NODE) {  // For boolean variables
+                    cond = child;
+                } else if (child.kind == NodeKind.INC_DEC_STMT_NODE) {
+                    post = child;
+                } else if (child.kind == NodeKind.ASSIGN_NODE || 
+                          child.kind == NodeKind.SHORT_VAR_DECL_NODE) {
+                    init = child;
+                }
             }
+            
+            // Execute init if present
+            if (init != null) {
+                visit(init);
+            }
+            
+            // Execute the for loop
+            while (true) {
+                try {
+                    // Check condition
+                    if (cond != null) {
+                        visit(cond);
+                        boolean conditionResult = stack.popBool();
+                        if (!conditionResult) break;
+                    }
+                    
+                    // Execute body
+                    if (body != null) {
+                        visit(body);
+                    }
+                    
+                    // Execute post increment
+                    if (post != null) {
+                        visit(post);
+                    }
+
+                } catch (BreakException e) {
+                    break;
+                } catch (ContinueException e) {
+                    if (post != null) {
+                        visit(post);
+                    }
+                }
+            }
+        } else if (node.getChildCount() == 3) {
+            // Standard case: init, condition, body (no post)
+            AST init = node.getChild(0);
+            AST cond = node.getChild(1);
+            AST body = node.getChild(2);
+            
+            if (init != null) {
+                visit(init);
+            }
+            
+            while (true) {
+                try {
+                    if (cond != null) {
+                        visit(cond);
+                        if (!stack.popBool()) break;
+                    }
+                    visit(body);
+                } catch (BreakException e) {
+                    break;
+                } catch (ContinueException e) {
+                    // No post to execute
+                }
+            }
+        } else if (node.getChildCount() == 2) {
+            // For loop with only condition: for condition { body }
+            AST cond = node.getChild(0);
+            AST body = node.getChild(1);
+            
+            while (true) {
+                try {
+                    if (cond != null) {
+                        visit(cond);
+                        if (!stack.popBool()) break;
+                    }
+                    visit(body);
+                } catch (BreakException e) {
+                    break;
+                } catch (ContinueException e) {
+                    // No post to execute
+                }
+            }
+        } else if (node.getChildCount() == 1) {
+            // Infinite for loop: for { body }
+            AST body = node.getChild(0);
+            
+            while (true) {
+                try {
+                    visit(body);
+                } catch (BreakException e) {
+                    break;
+                } catch (ContinueException e) {
+                    // No post to execute
+                }
+            }
+        } else {
+            System.err.println("Unexpected for clause structure with " + node.getChildCount() + " children");
         }
+        
         memory.exitScope();
     }
+
+    private void visitForCondNode(AST node) {
+        memory.enterScope();
+        memory.exitScope();
+    }
+
     private void visitFuncDeclNode(AST node) {
         String funcName = node.getChild(0).text;
         functionDeclarations.put(funcName, node);
