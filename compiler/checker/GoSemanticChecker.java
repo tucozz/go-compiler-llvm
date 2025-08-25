@@ -154,6 +154,11 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         AST constSpecNode = new AST(NodeKind.CONST_SPEC_NODE, GoType.NO_TYPE);
         int lineNumber = ctx.start.getLine();
 
+        if (ctx.expressionList() == null) {
+            reportSemanticError(ctx, "const declaration missing required value");
+            return constSpecNode;
+        }
+
         String[] identifiers = ctx.identifierList().getText().split(",");
         List<Go_Parser.ExprContext> expressions = ((Go_Parser.ExprListContext)ctx.expressionList()).expr();
 
@@ -909,6 +914,11 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
         
         // Processar a expressão a ser convertida
+        if (ctx.expr() == null) {
+            reportSemanticError(ctx, "missing expression in type conversion");
+            return null;
+        }
+        
         AST sourceExpr = visit(ctx.expr());
         if (sourceExpr == null) {
             reportSemanticError(ctx, "invalid expression in type conversion");
@@ -1636,13 +1646,4 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         System.out.println("Arrays declarados: " + arrayTable.size());
         System.out.println("Strings literais: " + stringTable.size());
     }
-
-    // // Exibe a AST no formato DOT em stderr.
-    // public void printAST() {
-    //     if (root == null) {
-    //         System.err.println("AST not built - no tree to print");
-    //         return;
-    //     }
-    //     AST.printDot(root, this.varTable);
-    // }
 }
