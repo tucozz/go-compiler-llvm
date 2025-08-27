@@ -16,26 +16,32 @@ import java.util.Stack;
  */
 public class GoCodegenVisitor {
 
-    // StringBuilder para construir o código LLVM IR.
+    // Classe interna para representar uma entrada na tabela de símbolos
+    private static class SymbolTableEntry {
+        final boolean isConstant;
+        final String value; // Para constantes, é o valor literal. Para variáveis, é o ponteiro.
+        final GoType type;
+
+        SymbolTableEntry(boolean isConstant, String value, GoType type) {
+            this.isConstant = isConstant;
+            this.value = value;
+            this.type = type;
+        }
+    }
+
     private StringBuilder irBuilder;
-    private StringBuilder headerBuilder; // Para declarações globais e de funções
+    private StringBuilder headerBuilder;
 
-    // Contadores para gerar nomes únicos.
-    private int regCounter; // Para registadores virtuais (%0, %1, ...)
-    private int labelCounter; // Para labels (entry, if.then, loop, ...)
-    private int strCounter; // Para strings globais (@.str.0, @.str.1, ...)
+    private int regCounter;
+    private int labelCounter;
+    private int strCounter;
 
-    // Tabela de símbolos para mapear variáveis do código fonte para
-    // seus ponteiros na pilha LLVM. Ex: "x" -> "%x.addr"
-    private Stack<Map<String, String>> symbolTable;
+    // Tabela de símbolos agora armazena SymbolTableEntry
+    private Stack<Map<String, SymbolTableEntry>> symbolTable;
     
-    // Mapa para informações de funções
     private Map<String, AST> functionDeclarations;
-
-    // Cache para strings de formato do printf, para não as duplicar.
     private Map<GoType, String> printfFormatStrings;
     
-    // Pilhas para gerir labels de break/continue em ciclos aninhados
     private Stack<String> loopPostLabels;
     private Stack<String> loopEndLabels;
 
@@ -79,9 +85,12 @@ public class GoCodegenVisitor {
             // Statements
             case IF_NODE:           return visitIfNode(node);
             case FOR_CLAUSE_NODE:   return visitForClauseNode(node);
+            case FOR_COND_NODE:     return visitForCondNode(node);
             case BREAK_NODE:        return visitBreakNode(node);
             case CONTINUE_NODE:     return visitContinueNode(node);
             case INC_DEC_STMT_NODE: return visitIncDecStmtNode(node);
+            case CONST_DECL_NODE:   return visitConstDeclNode(node); // <-- NOVO
+            case CONST_SPEC_NODE:   return visitConstSpecNode(node); // <-- NOVO
             case VAR_DECL_NODE:     return visitVarDeclNode(node);
             case VAR_SPEC_NODE:     return visitVarSpecNode(node);
             case SHORT_VAR_DECL_NODE: return visitShortVarDeclNode(node);
@@ -91,10 +100,10 @@ public class GoCodegenVisitor {
             // Expressões
             case CALL_NODE:         return visitCallNode(node);
             case TYPE_CONV_NODE:    return visitTypeConvNode(node);
-            case UNARY_MINUS_NODE:  return visitUnaryMinusNode(node); // <-- NOVO
-            case NOT_NODE:          return visitNotNode(node); // <-- NOVO
-            case AND_NODE:          return visitAndNode(node); // <-- NOVO
-            case OR_NODE:           return visitOrNode(node); // <-- NOVO
+            case UNARY_MINUS_NODE:  return visitUnaryMinusNode(node);
+            case NOT_NODE:          return visitNotNode(node);
+            case AND_NODE:          return visitAndNode(node);
+            case OR_NODE:           return visitOrNode(node);
             case PLUS_NODE:         return visitBinaryOpNode(node, "add", null);
             case MINUS_NODE:        return visitBinaryOpNode(node, "sub", null);
             case TIMES_NODE:        return visitBinaryOpNode(node, "mul", null);
@@ -203,12 +212,13 @@ public class GoCodegenVisitor {
             AST paramNode = paramListNode.getChild(i);
             AST paramIdNode = paramNode.getChild(0);
             String paramName = paramIdNode.text;
-            String paramType = getLLVMType(paramIdNode.getAnnotatedType());
+            GoType paramType = paramIdNode.getAnnotatedType();
+            String llvmType = getLLVMType(paramType);
             String pointerName = "%" + paramName + ".addr";
 
-            emit(pointerName + " = alloca " + paramType);
-            emit("store " + paramType + " %" + i + ", " + paramType + "* " + pointerName);
-            symbolTable.peek().put(paramName, pointerName);
+            emit(pointerName + " = alloca " + llvmType);
+            emit("store " + llvmType + " %" + i + ", " + llvmType + "* " + pointerName);
+            symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
         }
 
         visit(bodyNode);
@@ -303,6 +313,40 @@ public class GoCodegenVisitor {
         loopEndLabels.pop();
         return "";
     }
+    
+    private String visitForCondNode(AST node) {
+        AST condNode = node.getChild(0);
+        AST bodyNode = node.getChild(1);
+
+        String condLabel = newLabel("loop.cond");
+        String bodyLabel = newLabel("loop.body");
+        String endLabel = newLabel("loop.end");
+
+        loopPostLabels.push(condLabel);
+        loopEndLabels.push(endLabel);
+
+        emit("br label %" + condLabel);
+
+        emitLabel(condLabel);
+        if (condNode != null) {
+            String condValue = visit(condNode);
+            emit("br i1 " + condValue + ", label %" + bodyLabel + ", label %" + endLabel);
+        } else {
+            emit("br label %" + bodyLabel);
+        }
+
+        emitLabel(bodyLabel);
+        visit(bodyNode);
+        if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+            emit("br label %" + condLabel);
+        }
+
+        emitLabel(endLabel);
+
+        loopPostLabels.pop();
+        loopEndLabels.pop();
+        return "";
+    }
 
     private String visitBreakNode(AST node) {
         if (!loopEndLabels.isEmpty()) {
@@ -322,8 +366,9 @@ public class GoCodegenVisitor {
         AST lvalueNode = node.getChild(0);
         AST opNode = node.getChild(1);
         String varName = lvalueNode.text;
-        String pointerName = symbolTable.peek().get(varName);
-        String llvmType = getLLVMType(lvalueNode.getAnnotatedType());
+        SymbolTableEntry entry = symbolTable.peek().get(varName);
+        String pointerName = entry.value;
+        String llvmType = getLLVMType(entry.type);
         
         String currentValue = newReg();
         emit(currentValue + " = load " + llvmType + ", " + llvmType + "* " + pointerName);
@@ -336,6 +381,29 @@ public class GoCodegenVisitor {
         emit(newValue + " = " + prefix + op + " " + llvmType + " " + currentValue + ", " + one);
 
         emit("store " + llvmType + " " + newValue + ", " + llvmType + "* " + pointerName);
+        return "";
+    }
+
+    private String visitConstDeclNode(AST node) {
+        for (AST spec : node.getChildren()) visit(spec);
+        return "";
+    }
+    
+    private String visitConstSpecNode(AST node) {
+        AST exprListNode = node.getChild(node.getChildCount() - 1);
+        int exprIndex = 0;
+        for (AST idNode : node.getChildren()) {
+            if (idNode.kind != NodeKind.ID_NODE) continue;
+            
+            String constName = idNode.text;
+            GoType constType = idNode.getAnnotatedType();
+            
+            // O valor de uma constante deve ser um literal, então visitá-lo retorna o valor diretamente
+            String value = visit(exprListNode.getChild(exprIndex));
+            
+            symbolTable.peek().put(constName, new SymbolTableEntry(true, value, constType));
+            exprIndex++;
+        }
         return "";
     }
 
@@ -354,11 +422,12 @@ public class GoCodegenVisitor {
             if (idNode.kind != NodeKind.ID_NODE) continue;
             
             String varName = idNode.text;
-            String llvmType = getLLVMType(idNode.getAnnotatedType());
+            GoType varType = idNode.getAnnotatedType();
+            String llvmType = getLLVMType(varType);
             String pointerName = "%" + varName + ".addr";
 
             emit(pointerName + " = alloca " + llvmType);
-            symbolTable.peek().put(varName, pointerName);
+            symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
 
             if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
                 String value = visit(exprListNode.getChild(exprIndex));
@@ -377,11 +446,12 @@ public class GoCodegenVisitor {
             AST idNode = idListNode.getChild(i);
             AST exprNode = exprListNode.getChild(i);
             String varName = idNode.text;
-            String llvmType = getLLVMType(idNode.getAnnotatedType());
+            GoType varType = idNode.getAnnotatedType();
+            String llvmType = getLLVMType(varType);
             String pointerName = "%" + varName + ".addr";
 
             emit(pointerName + " = alloca " + llvmType);
-            symbolTable.peek().put(varName, pointerName);
+            symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
 
             String value = visit(exprNode);
             emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
@@ -391,8 +461,9 @@ public class GoCodegenVisitor {
 
     private String visitAssignNode(AST node) {
         String varName = node.getChild(0).text;
-        String pointerName = symbolTable.peek().get(varName);
-        String llvmType = getLLVMType(node.getChild(0).getAnnotatedType());
+        SymbolTableEntry entry = symbolTable.peek().get(varName);
+        String pointerName = entry.value;
+        String llvmType = getLLVMType(entry.type);
 
         String value = visit(node.getChild(1));
         emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
@@ -495,7 +566,6 @@ public class GoCodegenVisitor {
     private String visitNotNode(AST node) {
         String value = visit(node.getChild(0));
         String destReg = newReg();
-        // 'xor' com true (1) inverte o valor booleano
         emit(destReg + " = xor i1 " + value + ", 1");
         return destReg;
     }
@@ -508,7 +578,6 @@ public class GoCodegenVisitor {
         emit("br label %" + entryLabel);
         emitLabel(entryLabel);
         String lhsValue = visit(node.getChild(0));
-        // Se lhs for falso, salta para o fim com o resultado 'false'
         emit("br i1 " + lhsValue + ", label %" + evalRhsLabel + ", label %" + endLabel);
 
         emitLabel(evalRhsLabel);
@@ -517,8 +586,7 @@ public class GoCodegenVisitor {
 
         emitLabel(endLabel);
         String destReg = newReg();
-        // A instrução 'phi' seleciona o valor com base no bloco de onde viemos
-        emit(destReg + " = phi i1 [ " + lhsValue + ", %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
+        emit(destReg + " = phi i1 [ false, %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
         return destReg;
     }
 
@@ -530,7 +598,6 @@ public class GoCodegenVisitor {
         emit("br label %" + entryLabel);
         emitLabel(entryLabel);
         String lhsValue = visit(node.getChild(0));
-        // Se lhs for verdadeiro, salta para o fim com o resultado 'true'
         emit("br i1 " + lhsValue + ", label %" + endLabel + ", label %" + evalRhsLabel);
 
         emitLabel(evalRhsLabel);
@@ -539,7 +606,7 @@ public class GoCodegenVisitor {
 
         emitLabel(endLabel);
         String destReg = newReg();
-        emit(destReg + " = phi i1 [ " + lhsValue + ", %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
+        emit(destReg + " = phi i1 [ true, %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
         return destReg;
     }
 
@@ -579,12 +646,18 @@ public class GoCodegenVisitor {
 
     private String visitIdNode(AST node) {
         String varName = node.text;
-        String pointerName = symbolTable.peek().get(varName);
-        String llvmType = getLLVMType(node.getAnnotatedType());
-        String destReg = newReg();
+        SymbolTableEntry entry = symbolTable.peek().get(varName);
 
-        emit(destReg + " = load " + llvmType + ", " + llvmType + "* " + pointerName);
-        return destReg;
+        if (entry.isConstant) {
+            return entry.value; // Retorna o valor literal diretamente
+        } else {
+            // É uma variável, então carrega o valor do ponteiro
+            String pointerName = entry.value;
+            String llvmType = getLLVMType(entry.type);
+            String destReg = newReg();
+            emit(destReg + " = load " + llvmType + ", " + llvmType + "* " + pointerName);
+            return destReg;
+        }
     }
 
     // --- Literais ---
