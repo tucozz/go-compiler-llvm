@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Stack;
-import java.util.stream.Collectors;
 
 /**
  * GoCodegenVisitor gera código LLVM IR manualmente percorrendo a AST.
@@ -33,6 +32,13 @@ public class GoCodegenVisitor {
     // Mapa para informações de funções
     private Map<String, AST> functionDeclarations;
 
+    // Cache para strings de formato do printf, para não as duplicar.
+    private Map<GoType, String> printfFormatStrings;
+    
+    // Pilhas para gerir labels de break/continue em ciclos aninhados
+    private Stack<String> loopPostLabels;
+    private Stack<String> loopEndLabels;
+
 
     public GoCodegenVisitor() {
         this.irBuilder = new StringBuilder();
@@ -42,10 +48,12 @@ public class GoCodegenVisitor {
         this.strCounter = 0;
         this.symbolTable = new Stack<>();
         this.functionDeclarations = new HashMap<>();
+        this.printfFormatStrings = new HashMap<>();
+        this.loopPostLabels = new Stack<>();
+        this.loopEndLabels = new Stack<>();
     }
 
     public String run(AST root) {
-        // Declaração de funções built-in como 'printf' do C
         headerBuilder.append("declare i32 @printf(i8*, ...)\n\n");
 
         for (AST child : root.getChildren()) {
@@ -71,6 +79,8 @@ public class GoCodegenVisitor {
             // Statements
             case IF_NODE:           return visitIfNode(node);
             case FOR_CLAUSE_NODE:   return visitForClauseNode(node);
+            case BREAK_NODE:        return visitBreakNode(node);
+            case CONTINUE_NODE:     return visitContinueNode(node);
             case INC_DEC_STMT_NODE: return visitIncDecStmtNode(node);
             case VAR_DECL_NODE:     return visitVarDeclNode(node);
             case VAR_SPEC_NODE:     return visitVarSpecNode(node);
@@ -80,21 +90,25 @@ public class GoCodegenVisitor {
             
             // Expressões
             case CALL_NODE:         return visitCallNode(node);
+            case TYPE_CONV_NODE:    return visitTypeConvNode(node);
             case PLUS_NODE:         return visitBinaryOpNode(node, "add", null);
             case MINUS_NODE:        return visitBinaryOpNode(node, "sub", null);
             case TIMES_NODE:        return visitBinaryOpNode(node, "mul", null);
-            case OVER_NODE:         return visitBinaryOpNode(node, "sdiv", null);
+            case OVER_NODE:         return visitBinaryOpNode(node, "div", null);
+            case MOD_NODE:          return visitBinaryOpNode(node, "rem", null);
             
-            case EQUAL_NODE:        return visitBinaryOpNode(node, "icmp", "eq");
-            case NOT_EQUAL_NODE:    return visitBinaryOpNode(node, "icmp", "ne");
-            case LESS_NODE:         return visitBinaryOpNode(node, "icmp", "slt");
-            case LESS_EQ_NODE:      return visitBinaryOpNode(node, "icmp", "sle");
-            case GREATER_NODE:      return visitBinaryOpNode(node, "icmp", "sgt");
-            case GREATER_EQ_NODE:   return visitBinaryOpNode(node, "icmp", "sge");
+            case EQUAL_NODE:        return visitBinaryOpNode(node, "cmp", "eq");
+            case NOT_EQUAL_NODE:    return visitBinaryOpNode(node, "cmp", "ne");
+            case LESS_NODE:         return visitBinaryOpNode(node, "cmp", "lt");
+            case LESS_EQ_NODE:      return visitBinaryOpNode(node, "cmp", "le");
+            case GREATER_NODE:      return visitBinaryOpNode(node, "cmp", "gt");
+            case GREATER_EQ_NODE:   return visitBinaryOpNode(node, "cmp", "ge");
             
             // Literais e Identificadores
             case INT_VAL_NODE:      return visitIntValNode(node);
+            case REAL_VAL_NODE:     return visitRealValNode(node);
             case BOOL_VAL_NODE:     return visitBoolValNode(node);
+            case STR_VAL_NODE:      return visitStrValNode(node);
             case ID_NODE:           return visitIdNode(node);
 
             default:
@@ -110,11 +124,12 @@ public class GoCodegenVisitor {
 
     private String newReg() { return "%" + regCounter++; }
     private String newLabel(String prefix) { return prefix + "." + labelCounter++; }
-    private String newStrConstant(String str) {
-        String strName = "@.str." + strCounter++;
-        int len = str.length() + 1;
+    
+    private String createGlobalString(String value, String namePrefix) {
+        String strName = "@" + namePrefix + "." + strCounter++;
+        int len = value.length() + 1;
         headerBuilder.append(strName).append(" = private unnamed_addr constant [")
-                     .append(len).append(" x i8] c\"").append(str).append("\\00\"\n");
+                     .append(len).append(" x i8] c\"").append(value).append("\\00\"\n");
         return strName;
     }
 
@@ -130,6 +145,22 @@ public class GoCodegenVisitor {
             case VOID: return "void";
             default: return "void";
         }
+    }
+
+    private String getOrCreateFormatString(GoType type) {
+        if (printfFormatStrings.containsKey(type)) {
+            return printfFormatStrings.get(type);
+        }
+        String formatSpecifier;
+        switch (type) {
+            case INT: case INT32: case BOOL: formatSpecifier = "%d\\0A"; break;
+            case FLOAT64: formatSpecifier = "%f\\0A"; break;
+            case STRING: formatSpecifier = "%s\\0A"; break;
+            default: formatSpecifier = "Unsupported type\\0A";
+        }
+        String formatStrName = createGlobalString(formatSpecifier, ".fmt");
+        printfFormatStrings.put(type, formatStrName);
+        return formatStrName;
     }
 
     // --- Visitantes da AST ---
@@ -148,7 +179,6 @@ public class GoCodegenVisitor {
         AST bodyNode = node.getChild(3);
         String returnType = getLLVMType(resultNode.type);
         
-        // CORREÇÃO 1: Inicializa o contador de registos com o número de parâmetros.
         regCounter = paramListNode.getChildCount();
 
         List<String> paramDefs = new ArrayList<>();
@@ -178,11 +208,12 @@ public class GoCodegenVisitor {
         }
 
         visit(bodyNode);
-
-        // CORREÇÃO 2: Removemos o 'ret' de fallback.
-        // O 'visitReturnNode' é agora o único responsável por emitir 'ret'.
-        // Se uma função não-void não tiver 'return', é um erro semântico que
-        // o checker deve apanhar. Se for void, o LLVM permite que termine sem 'ret'.
+        
+        if (returnType.equals("void")) {
+             if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+                 emit("ret void");
+             }
+        }
         
         irBuilder.append("}\n");
         symbolTable.pop();
@@ -215,12 +246,16 @@ public class GoCodegenVisitor {
 
         emitLabel(thenLabel);
         visit(node.getChild(1));
-        emit("br label %" + endLabel);
+        if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+            emit("br label %" + endLabel);
+        }
 
         if (hasElse) {
             emitLabel(elseLabel);
             visit(node.getChild(2));
-            emit("br label %" + endLabel);
+            if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+                emit("br label %" + endLabel);
+            }
         }
 
         emitLabel(endLabel);
@@ -238,6 +273,9 @@ public class GoCodegenVisitor {
         String postLabel = newLabel("loop.post");
         String endLabel = newLabel("loop.end");
 
+        loopPostLabels.push(postLabel);
+        loopEndLabels.push(endLabel);
+
         if (initNode != null) visit(initNode);
         emit("br label %" + condLabel);
 
@@ -247,13 +285,32 @@ public class GoCodegenVisitor {
 
         emitLabel(bodyLabel);
         visit(bodyNode);
-        emit("br label %" + postLabel);
+        if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+            emit("br label %" + postLabel);
+        }
 
         emitLabel(postLabel);
         if (postNode != null) visit(postNode);
         emit("br label %" + condLabel);
 
         emitLabel(endLabel);
+
+        loopPostLabels.pop();
+        loopEndLabels.pop();
+        return "";
+    }
+
+    private String visitBreakNode(AST node) {
+        if (!loopEndLabels.isEmpty()) {
+            emit("br label %" + loopEndLabels.peek());
+        }
+        return "";
+    }
+
+    private String visitContinueNode(AST node) {
+        if (!loopPostLabels.isEmpty()) {
+            emit("br label %" + loopPostLabels.peek());
+        }
         return "";
     }
 
@@ -269,7 +326,10 @@ public class GoCodegenVisitor {
 
         String newValue = newReg();
         String op = opNode.text.equals("++") ? "add" : "sub";
-        emit(newValue + " = " + op + " nsw " + llvmType + " " + currentValue + ", 1");
+        String one = llvmType.equals("double") ? "1.0" : "1";
+        
+        String prefix = llvmType.equals("double") ? "f" : "";
+        emit(newValue + " = " + prefix + op + " " + llvmType + " " + currentValue + ", " + one);
 
         emit("store " + llvmType + " " + newValue + ", " + llvmType + "* " + pointerName);
         return "";
@@ -350,7 +410,24 @@ public class GoCodegenVisitor {
 
     private String visitCallNode(AST node) {
         String funcName = node.getChild(0).text;
-        
+
+        if (funcName.equals("println")) {
+            for (int i = 1; i < node.getChildCount(); i++) {
+                AST argNode = node.getChild(i);
+                GoType argType = argNode.getAnnotatedType();
+                String argValue = visit(argNode);
+
+                String formatStrName = getOrCreateFormatString(argType);
+                int formatStrLen = 4;
+
+                String formatStrPtr = newReg();
+                emit(formatStrPtr + " = getelementptr inbounds [" + formatStrLen + " x i8], [" + formatStrLen + " x i8]* " + formatStrName + ", i64 0, i64 0");
+                
+                emit("call i32 (i8*, ...) @printf(i8* " + formatStrPtr + ", " + getLLVMType(argType) + " " + argValue + ")");
+            }
+            return "";
+        }
+
         List<String> argValues = new ArrayList<>();
         for (int i = 1; i < node.getChildCount(); i++) {
             argValues.add(visit(node.getChild(i)));
@@ -378,17 +455,54 @@ public class GoCodegenVisitor {
         }
     }
 
+    private String visitTypeConvNode(AST node) {
+        GoType targetType = node.getAnnotatedType();
+        AST exprNode = node.getChild(0);
+        GoType sourceType = exprNode.getAnnotatedType();
+        
+        String sourceValue = visit(exprNode);
+        String destReg = newReg();
+        
+        if (sourceType.isInteger() && targetType.isFloat()) {
+            emit(destReg + " = sitofp " + getLLVMType(sourceType) + " " + sourceValue + " to " + getLLVMType(targetType));
+        } else if (sourceType.isFloat() && targetType.isInteger()) {
+            emit(destReg + " = fptosi " + getLLVMType(sourceType) + " " + sourceValue + " to " + getLLVMType(targetType));
+        } else {
+            return sourceValue;
+        }
+        
+        return destReg;
+    }
+
     private String visitBinaryOpNode(AST node, String op, String condition) {
-        String operandType = getLLVMType(node.getChild(0).getAnnotatedType());
+        GoType operandGoType = node.getChild(0).getAnnotatedType();
+        String operandType = getLLVMType(operandGoType);
         String left = visit(node.getChild(0));
         String right = visit(node.getChild(1));
         String destReg = newReg();
         
         String instruction;
-        if (op.equals("icmp")) {
-            instruction = destReg + " = " + op + " " + condition + " " + operandType + " " + left + ", " + right;
+        if (operandGoType.isFloat()) {
+            String prefix = "f";
+            String cmpPrefix = "fcmp";
+            Map<String, String> floatConditions = Map.of("eq", "oeq", "ne", "one", "lt", "olt", "le", "ole", "gt", "ogt", "ge", "oge");
+            
+            if (op.equals("cmp")) {
+                instruction = destReg + " = " + cmpPrefix + " " + floatConditions.get(condition) + " " + operandType + " " + left + ", " + right;
+            } else {
+                instruction = destReg + " = " + prefix + op + " " + operandType + " " + left + ", " + right;
+            }
         } else {
-            instruction = destReg + " = " + op + " nsw " + operandType + " " + left + ", " + right;
+            String cmpPrefix = "icmp";
+            String arithOp = op;
+            if (op.equals("rem")) arithOp = "srem";
+            if (op.equals("div")) arithOp = "sdiv";
+            
+            if (op.equals("cmp")) {
+                instruction = destReg + " = " + cmpPrefix + " " + condition + " " + operandType + " " + left + ", " + right;
+            } else {
+                instruction = destReg + " = " + arithOp + " nsw " + operandType + " " + left + ", " + right;
+            }
         }
         emit(instruction);
         return destReg;
@@ -404,11 +518,26 @@ public class GoCodegenVisitor {
         return destReg;
     }
 
+    // --- Literais ---
+
     private String visitIntValNode(AST node) {
         return String.valueOf(node.intData);
     }
     
+    private String visitRealValNode(AST node) {
+        return String.valueOf((double)node.floatData);
+    }
+
     private String visitBoolValNode(AST node) {
         return node.boolData ? "1" : "0";
+    }
+
+    private String visitStrValNode(AST node) {
+        String strName = createGlobalString(node.text, ".str");
+        int strLen = node.text.length() + 1;
+        
+        String ptrReg = newReg();
+        emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
+        return ptrReg;
     }
 }
