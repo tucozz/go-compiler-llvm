@@ -91,6 +91,10 @@ public class GoCodegenVisitor {
             // Expressões
             case CALL_NODE:         return visitCallNode(node);
             case TYPE_CONV_NODE:    return visitTypeConvNode(node);
+            case UNARY_MINUS_NODE:  return visitUnaryMinusNode(node); // <-- NOVO
+            case NOT_NODE:          return visitNotNode(node); // <-- NOVO
+            case AND_NODE:          return visitAndNode(node); // <-- NOVO
+            case OR_NODE:           return visitOrNode(node); // <-- NOVO
             case PLUS_NODE:         return visitBinaryOpNode(node, "add", null);
             case MINUS_NODE:        return visitBinaryOpNode(node, "sub", null);
             case TIMES_NODE:        return visitBinaryOpNode(node, "mul", null);
@@ -471,6 +475,71 @@ public class GoCodegenVisitor {
             return sourceValue;
         }
         
+        return destReg;
+    }
+
+    private String visitUnaryMinusNode(AST node) {
+        GoType type = node.getAnnotatedType();
+        String llvmType = getLLVMType(type);
+        String value = visit(node.getChild(0));
+        String destReg = newReg();
+
+        if (type.isFloat()) {
+            emit(destReg + " = fsub " + llvmType + " 0.0, " + value);
+        } else { // Integer
+            emit(destReg + " = sub nsw " + llvmType + " 0, " + value);
+        }
+        return destReg;
+    }
+
+    private String visitNotNode(AST node) {
+        String value = visit(node.getChild(0));
+        String destReg = newReg();
+        // 'xor' com true (1) inverte o valor booleano
+        emit(destReg + " = xor i1 " + value + ", 1");
+        return destReg;
+    }
+
+    private String visitAndNode(AST node) {
+        String entryLabel = newLabel("and.entry");
+        String evalRhsLabel = newLabel("and.eval_rhs");
+        String endLabel = newLabel("and.end");
+        
+        emit("br label %" + entryLabel);
+        emitLabel(entryLabel);
+        String lhsValue = visit(node.getChild(0));
+        // Se lhs for falso, salta para o fim com o resultado 'false'
+        emit("br i1 " + lhsValue + ", label %" + evalRhsLabel + ", label %" + endLabel);
+
+        emitLabel(evalRhsLabel);
+        String rhsValue = visit(node.getChild(1));
+        emit("br label %" + endLabel);
+
+        emitLabel(endLabel);
+        String destReg = newReg();
+        // A instrução 'phi' seleciona o valor com base no bloco de onde viemos
+        emit(destReg + " = phi i1 [ " + lhsValue + ", %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
+        return destReg;
+    }
+
+    private String visitOrNode(AST node) {
+        String entryLabel = newLabel("or.entry");
+        String evalRhsLabel = newLabel("or.eval_rhs");
+        String endLabel = newLabel("or.end");
+
+        emit("br label %" + entryLabel);
+        emitLabel(entryLabel);
+        String lhsValue = visit(node.getChild(0));
+        // Se lhs for verdadeiro, salta para o fim com o resultado 'true'
+        emit("br i1 " + lhsValue + ", label %" + endLabel + ", label %" + evalRhsLabel);
+
+        emitLabel(evalRhsLabel);
+        String rhsValue = visit(node.getChild(1));
+        emit("br label %" + endLabel);
+
+        emitLabel(endLabel);
+        String destReg = newReg();
+        emit(destReg + " = phi i1 [ " + lhsValue + ", %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
         return destReg;
     }
 
