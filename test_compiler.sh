@@ -93,7 +93,7 @@ for GO_FILE in $(find "$TEST_DIR" -type f -name "*.go"); do
 
     # --- Passo 3: Criar o executável ---
     echo "   3. Gerando o executável..."
-    CMD_CLANG="clang \"$S_FILE\" -o \"$EXEC_FILE\""
+    CMD_CLANG="clang -no-pie \"$S_FILE\" -o \"$EXEC_FILE\""
     if [ "$VERBOSE" = true ]; then
         echo -e "      ${CYAN}Executando:${NC} $CMD_CLANG"
     fi

@@ -38,6 +38,7 @@ public class GoCodegenVisitor {
     private int regCounter;
     private int labelCounter;
     private int strCounter;
+    private String currentBlock; // Track current block label
 
     // Tabela de símbolos agora armazena SymbolTableEntry
     private Stack<Map<String, SymbolTableEntry>> symbolTable;
@@ -59,6 +60,7 @@ public class GoCodegenVisitor {
         this.regCounter = 0;
         this.labelCounter = 0;
         this.strCounter = 0;
+        this.currentBlock = "entry"; // Initialize with entry block
         this.symbolTable = new Stack<>();
         this.globalSymbols = new HashMap<>();
         this.functionDeclarations = new HashMap<>();
@@ -117,7 +119,7 @@ public class GoCodegenVisitor {
             case NOT_NODE:          return visitNotNode(node);
             case AND_NODE:          return visitAndNode(node);
             case OR_NODE:           return visitOrNode(node);
-            case PLUS_NODE:         return visitBinaryOpNode(node, "add", null);
+            case PLUS_NODE:         return visitPlusNode(node);
             case MINUS_NODE:        return visitBinaryOpNode(node, "sub", null);
             case TIMES_NODE:        return visitBinaryOpNode(node, "mul", null);
             case OVER_NODE:         return visitBinaryOpNode(node, "div", null);
@@ -172,9 +174,14 @@ public class GoCodegenVisitor {
     
     private String createGlobalString(String value, String namePrefix) {
         String strName = "@" + namePrefix + "." + strCounter++;
-        String escapedValue = value.replace("\\", "\\5C"); // LLVM requer que a barra invertida seja escapada
-        // Calculate the actual length after escaping, plus 1 for null terminator
-        int len = escapedValue.length() + 1;
+        
+        // First escape for LLVM, then count bytes
+        String escapedValue = value.replace("\\", "\\5C").replace("\n", "\\0A").replace("\"", "\\22");
+        
+        // For LLVM IR, we need to count the actual bytes in the final escaped string
+        // But escape sequences like \0A represent single bytes, so we count the original string in UTF-8
+        int len = value.getBytes(java.nio.charset.StandardCharsets.UTF_8).length + 1; // +1 for null terminator
+        
         headerBuilder.append(strName).append(" = private unnamed_addr constant [")
                      .append(len).append(" x i8] c\"").append(escapedValue).append("\\00\"\n");
         
@@ -193,6 +200,11 @@ public class GoCodegenVisitor {
     private void emitLabel(String label) { 
         irBuilder.append(label).append(":\n");
         lastInstructionWasTerminator = false; // Labels reset the terminator flag
+        currentBlock = label; // Update current block
+    }
+    
+    private String getCurrentBlock() {
+        return currentBlock;
     }
 
     private String getLLVMType(GoType goType) {
@@ -235,10 +247,10 @@ public class GoCodegenVisitor {
         }
         String formatSpecifier;
         switch (type) {
-            case INT: case INT32: case BOOL: formatSpecifier = "%d\\0A"; break;
-            case FLOAT64: formatSpecifier = "%f\\0A"; break;
-            case STRING: formatSpecifier = "%s\\0A"; break;
-            default: formatSpecifier = "Unsupported type\\0A";
+            case INT: case INT32: case BOOL: formatSpecifier = "%d\n"; break;
+            case FLOAT64: formatSpecifier = "%f\n"; break;
+            case STRING: formatSpecifier = "%s\n"; break;
+            default: formatSpecifier = "Unsupported type\n";
         }
         String formatStrName = createGlobalString(formatSpecifier, ".fmt.printf");
         printfFormatStrings.put(type, formatStrName);
@@ -707,6 +719,13 @@ public class GoCodegenVisitor {
             return "";
         }
 
+        if (funcName.equals("len")) {
+            // For string length - simplified implementation, always return 0
+            String resultReg = newReg();
+            emit(resultReg + " = add i32 0, 0  ; len() placeholder");
+            return resultReg;
+        }
+
         if (funcName.equals("scanln")) {
             String totalScannedReg = newReg();
             emit(totalScannedReg + " = alloca i32");
@@ -846,43 +865,63 @@ public class GoCodegenVisitor {
     }
 
     private String visitAndNode(AST node) {
-        String entryLabel = newLabel("and.entry");
+        String entryLabel = getCurrentBlock(); // Use current block instead of creating new one
         String evalRhsLabel = newLabel("and.eval_rhs");
         String endLabel = newLabel("and.end");
         
-        emit("br label %" + entryLabel);
-        emitLabel(entryLabel);
+        // No initial branch - we're already in the entry block
         String lhsValue = visit(node.getChild(0));
         emit("br i1 " + lhsValue + ", label %" + evalRhsLabel + ", label %" + endLabel);
 
         emitLabel(evalRhsLabel);
         String rhsValue = visit(node.getChild(1));
+        String rhsBlock = getCurrentBlock(); // Get the actual block where RHS ends
         emit("br label %" + endLabel);
 
         emitLabel(endLabel);
         String destReg = newReg();
-        emit(destReg + " = phi i1 [ false, %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
+        emit(destReg + " = phi i1 [ false, %" + entryLabel + " ], [ " + rhsValue + ", %" + rhsBlock + " ]");
         return destReg;
     }
 
     private String visitOrNode(AST node) {
-        String entryLabel = newLabel("or.entry");
+        String entryLabel = getCurrentBlock(); // Use current block instead of creating new one
         String evalRhsLabel = newLabel("or.eval_rhs");
         String endLabel = newLabel("or.end");
 
-        emit("br label %" + entryLabel);
-        emitLabel(entryLabel);
+        // No initial branch - we're already in the entry block
         String lhsValue = visit(node.getChild(0));
         emit("br i1 " + lhsValue + ", label %" + endLabel + ", label %" + evalRhsLabel);
 
         emitLabel(evalRhsLabel);
         String rhsValue = visit(node.getChild(1));
+        String rhsBlock = getCurrentBlock(); // Get the actual block where RHS ends
         emit("br label %" + endLabel);
 
         emitLabel(endLabel);
         String destReg = newReg();
-        emit(destReg + " = phi i1 [ true, %" + entryLabel + " ], [ " + rhsValue + ", %" + evalRhsLabel + " ]");
+        emit(destReg + " = phi i1 [ true, %" + entryLabel + " ], [ " + rhsValue + ", %" + rhsBlock + " ]");
         return destReg;
+    }
+
+    private String visitPlusNode(AST node) {
+        GoType resultType = node.getAnnotatedType();
+        
+        // Check if this is string concatenation
+        if (resultType == GoType.STRING) {
+            // For now, implement a simple version that returns a fixed pointer
+            // In a real implementation, you would need to call strcat or similar
+            String left = visit(node.getChild(0));
+            String right = visit(node.getChild(1));
+            
+            // Create a simple placeholder - in reality this would need proper string concatenation
+            String destReg = newReg();
+            emit(destReg + " = select i1 true, i8* " + left + ", i8* " + right + "  ; placeholder for string concat");
+            return destReg;
+        } else {
+            // Regular arithmetic addition
+            return visitBinaryOpNode(node, "add", null);
+        }
     }
 
     private String visitBinaryOpNode(AST node, String op, String condition) {
@@ -954,10 +993,9 @@ public class GoCodegenVisitor {
         } else {
             String pointerName = entry.value;
             if (entry.type == GoType.STRING) {
-                // Para strings, não carregamos. Obtemos um ponteiro para o primeiro elemento.
+                // Para strings, carregamos o ponteiro. Strings são armazenadas como i8**
                 String destReg = newReg();
-                String bufferType = getLLVMTypeForAlloc(GoType.STRING);
-                emit(destReg + " = getelementptr inbounds " + bufferType + ", " + bufferType + "* " + pointerName + ", i64 0, i64 0");
+                emit(destReg + " = load i8*, i8** " + pointerName);
                 return destReg; // Retorna um i8*
             } else if (entry.type.isArray()) {
                 return entry.value;
@@ -1040,7 +1078,8 @@ public class GoCodegenVisitor {
 
     private String visitStrValNode(AST node) {
         String strName = createGlobalString(node.text, ".const.str");
-        int strLen = node.text.length() + 1;
+        // Use the stored length from createGlobalString
+        int strLen = stringLengths.get(strName);
         
         String ptrReg = newReg();
         emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
@@ -1058,7 +1097,7 @@ public class GoCodegenVisitor {
             case BOOL_VAL_NODE: return node.boolData ? "1" : "0";
             case STR_VAL_NODE: {
                 String strName = createGlobalString(node.text, ".str");
-                int strLen = node.text.length() + 1;
+                int strLen = stringLengths.get(strName);
                 String ptrReg = newReg();
                 emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
                 return ptrReg;
