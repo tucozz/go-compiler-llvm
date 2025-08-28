@@ -46,9 +46,11 @@ public class GoCodegenVisitor {
     private Map<String, AST> functionDeclarations;
     private Map<GoType, String> printfFormatStrings;
     private Map<GoType, String> scanfFormatStrings; // Cache para strings de formato do scanf
+    private Map<String, Integer> stringLengths; // Cache para comprimentos de strings
 
     private Stack<String> loopPostLabels;
     private Stack<String> loopEndLabels;
+    private boolean lastInstructionWasTerminator;
 
 
     public GoCodegenVisitor() {
@@ -62,8 +64,10 @@ public class GoCodegenVisitor {
         this.functionDeclarations = new HashMap<>();
         this.printfFormatStrings = new HashMap<>();
         this.scanfFormatStrings = new HashMap<>(); // Inicializa o mapa do scanf
+        this.stringLengths = new HashMap<>(); // Inicializa o mapa dos comprimentos
         this.loopPostLabels = new Stack<>();
         this.loopEndLabels = new Stack<>();
+        this.lastInstructionWasTerminator = false;
     }
 
     public String run(AST root) {
@@ -132,7 +136,7 @@ public class GoCodegenVisitor {
             case BOOL_VAL_NODE:     return visitBoolValNode(node);
             case STR_VAL_NODE: {
                 String strName = createGlobalString(node.text, ".str");
-                int strLen = node.text.length() + 1;
+                int strLen = stringLengths.get(strName);
                 String ptrReg = newReg();
                 emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
                 return ptrReg;
@@ -169,14 +173,27 @@ public class GoCodegenVisitor {
     private String createGlobalString(String value, String namePrefix) {
         String strName = "@" + namePrefix + "." + strCounter++;
         String escapedValue = value.replace("\\", "\\5C"); // LLVM requer que a barra invertida seja escapada
-        int len = value.length() + 1;
+        // Calculate the actual length after escaping, plus 1 for null terminator
+        int len = escapedValue.length() + 1;
         headerBuilder.append(strName).append(" = private unnamed_addr constant [")
                      .append(len).append(" x i8] c\"").append(escapedValue).append("\\00\"\n");
+        
+        // Store the length for later use
+        stringLengths.put(strName, len);
+        
         return strName;
     }
 
-    private void emit(String instruction) { irBuilder.append("\t").append(instruction).append("\n"); }
-    private void emitLabel(String label) { irBuilder.append(label).append(":\n"); }
+    private void emit(String instruction) { 
+        irBuilder.append("\t").append(instruction).append("\n");
+        // Check if this is a terminator instruction
+        String trimmed = instruction.trim().toLowerCase();
+        lastInstructionWasTerminator = trimmed.startsWith("ret ") || trimmed.startsWith("br ");
+    }
+    private void emitLabel(String label) { 
+        irBuilder.append(label).append(":\n");
+        lastInstructionWasTerminator = false; // Labels reset the terminator flag
+    }
 
     private String getLLVMType(GoType goType) {
         switch (goType) {
@@ -282,12 +299,18 @@ public class GoCodegenVisitor {
             AST paramIdNode = paramNode.getChild(0);
             String paramName = paramIdNode.text;
             GoType paramType = paramIdNode.getAnnotatedType();
-            String llvmAllocType = getLLVMTypeForAlloc(paramType);
-            String pointerName = "%" + paramName + ".addr";
+            String pointerName = "%" + paramName + ".addr." + regCounter++;
 
             if (paramType.isArray()) {
                 symbolTable.peek().put(paramName, new SymbolTableEntry(false, "%" + i, paramType));
+            } else if (paramType == GoType.STRING) {
+                // For string parameters, we directly use the pointer without additional allocation
+                String llvmType = getLLVMType(paramType); // This is i8*
+                emit(pointerName + " = alloca " + llvmType);
+                emit("store " + llvmType + " %" + i + ", " + llvmType + "* " + pointerName);
+                symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
             } else {
+                String llvmAllocType = getLLVMTypeForAlloc(paramType);
                 emit(pointerName + " = alloca " + llvmAllocType);
                 emit("store " + getLLVMType(paramType) + " %" + i + ", " + getLLVMType(paramType) + "* " + pointerName);
                 symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
@@ -331,21 +354,30 @@ public class GoCodegenVisitor {
             emit("br i1 " + condValue + ", label %" + thenLabel + ", label %" + endLabel);
         }
 
+        // Process THEN branch
         emitLabel(thenLabel);
         visit(node.getChild(1));
-        if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+        boolean thenHasTerminator = lastInstructionWasTerminator;
+        if (!thenHasTerminator) {
             emit("br label %" + endLabel);
         }
 
+        // Process ELSE branch (if exists)
+        boolean elseHasTerminator = false;
         if (hasElse) {
             emitLabel(elseLabel);
             visit(node.getChild(2));
-            if (irBuilder.length() > 0 && !irBuilder.toString().trim().endsWith("ret") && !irBuilder.toString().trim().endsWith("br")) {
+            elseHasTerminator = lastInstructionWasTerminator;
+            if (!elseHasTerminator) {
                 emit("br label %" + endLabel);
             }
         }
 
-        emitLabel(endLabel);
+        // Only emit the end label if at least one branch needs it
+        if (!thenHasTerminator || (hasElse && !elseHasTerminator) || !hasElse) {
+            emitLabel(endLabel);
+        }
+        
         return "";
     }
 
@@ -367,8 +399,13 @@ public class GoCodegenVisitor {
         emit("br label %" + condLabel);
 
         emitLabel(condLabel);
-        String condValue = visit(condNode);
-        emit("br i1 " + condValue + ", label %" + bodyLabel + ", label %" + endLabel);
+        if (condNode != null) {
+            String condValue = visit(condNode);
+            emit("br i1 " + condValue + ", label %" + bodyLabel + ", label %" + endLabel);
+        } else {
+            // For infinite loop (empty condition), always branch to body
+            emit("br label %" + bodyLabel);
+        }
 
         emitLabel(bodyLabel);
         visit(bodyNode);
@@ -523,8 +560,10 @@ public class GoCodegenVisitor {
                 globalSymbols.put(varName, new SymbolTableEntry(false, globalName, varType));
             } else {
                 // Local variable
-                String pointerName = "%" + varName + ".addr";
-                emit(pointerName + " = alloca " + llvmAllocType);
+                String pointerName = "%" + varName + ".addr." + regCounter++;
+                // For strings, allocate space for a pointer, not a buffer
+                String allocType = (varType == GoType.STRING) ? getLLVMType(varType) : getLLVMTypeForAlloc(varType);
+                emit(pointerName + " = alloca " + allocType);
                 symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
 
                 if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
@@ -552,15 +591,16 @@ public class GoCodegenVisitor {
             AST exprNode = exprListNode.getChild(i);
             String varName = idNode.text;
             GoType varType = idNode.getAnnotatedType();
-            String llvmAllocType = getLLVMTypeForAlloc(varType);
-            String pointerName = "%" + varName + ".addr";
+            // For strings, allocate space for a pointer, not a buffer
+            String allocType = (varType == GoType.STRING) ? getLLVMType(varType) : getLLVMTypeForAlloc(varType);
+            String pointerName = "%" + varName + ".addr." + regCounter++;
 
-            emit(pointerName + " = alloca " + llvmAllocType);
+            emit(pointerName + " = alloca " + allocType);
             symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
 
             String value = visit(exprNode);
-            // A atribuição de literais a strings não é tratada aqui (requer strcpy)
-            if (varType != GoType.STRING) {
+            // Store the value
+            if (!value.isEmpty()) {
                 emit("store " + getLLVMType(varType) + " " + value + ", " + getLLVMType(varType) + "* " + pointerName);
             }
         }
@@ -649,7 +689,7 @@ public class GoCodegenVisitor {
                 String argValue = visit(argNode);
 
                 String formatStrName = getOrCreateFormatString(argType);
-                int formatStrLen = 4;
+                int formatStrLen = stringLengths.get(formatStrName);
 
                 String formatStrPtr = newReg();
                 emit(formatStrPtr + " = getelementptr inbounds [" + formatStrLen + " x i8], [" + formatStrLen + " x i8]* " + formatStrName + ", i64 0, i64 0");
@@ -686,7 +726,7 @@ public class GoCodegenVisitor {
                 String formatStrName = getOrCreateScanfFormatString(varType);
                 if (formatStrName.isEmpty()) continue;
 
-                int formatStrLen = (varType == GoType.FLOAT64) ? 4 : 3;
+                int formatStrLen = stringLengths.get(formatStrName);
 
                 String formatStrPtr = newReg();
                 emit(formatStrPtr + " = getelementptr inbounds [" + formatStrLen + " x i8], [" + formatStrLen + " x i8]* " + formatStrName + ", i64 0, i64 0");
@@ -870,9 +910,16 @@ public class GoCodegenVisitor {
             if (op.equals("div")) arithOp = "sdiv";
             
             if (op.equals("cmp")) {
-                instruction = destReg + " = " + cmpPrefix + " " + condition + " " + operandType + " " + left + ", " + right;
+                // Use signed predicates for integers
+                Map<String, String> intConditions = Map.of("eq", "eq", "ne", "ne", "lt", "slt", "le", "sle", "gt", "sgt", "ge", "sge");
+                instruction = destReg + " = " + cmpPrefix + " " + intConditions.get(condition) + " " + operandType + " " + left + ", " + right;
             } else {
-                instruction = destReg + " = " + arithOp + " nsw " + operandType + " " + left + ", " + right;
+                // Don't use nsw with srem and sdiv
+                if (arithOp.equals("srem") || arithOp.equals("sdiv")) {
+                    instruction = destReg + " = " + arithOp + " " + operandType + " " + left + ", " + right;
+                } else {
+                    instruction = destReg + " = " + arithOp + " nsw " + operandType + " " + left + ", " + right;
+                }
             }
         }
         emit(instruction);
