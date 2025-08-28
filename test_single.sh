@@ -50,4 +50,4 @@ fi
 echo "✅ Sucesso! Executável gerado: $EXEC_FILE"
 
 # Limpeza
-rm -f "$LL_FILE" "$S_FILE"
+rm -f "$S_FILE"
