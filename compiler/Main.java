@@ -81,6 +81,11 @@ public class Main {
                 GoCodegenVisitor codegen = new GoCodegenVisitor();
                 String llvmIr = codegen.run(ast);
                 
+                // --- Print LLVM IR to console for testing ---
+                System.out.println("\n--- INÍCIO DO CÓDIGO LLVM IR ---");
+                System.out.println(llvmIr);
+                System.out.println("--- FIM DO CÓDIGO LLVM IR ---\n");
+                
                 // --- PASSO 2: Determinar o nome do arquivo de saída ---
                 String outputFilePath;
                 int dotIndex = filePath.lastIndexOf('.');

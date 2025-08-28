@@ -41,6 +41,7 @@ public class GoCodegenVisitor {
 
     // Tabela de símbolos agora armazena SymbolTableEntry
     private Stack<Map<String, SymbolTableEntry>> symbolTable;
+    private Map<String, SymbolTableEntry> globalSymbols; // Para variáveis globais
     
     private Map<String, AST> functionDeclarations;
     private Map<GoType, String> printfFormatStrings;
@@ -57,6 +58,7 @@ public class GoCodegenVisitor {
         this.labelCounter = 0;
         this.strCounter = 0;
         this.symbolTable = new Stack<>();
+        this.globalSymbols = new HashMap<>();
         this.functionDeclarations = new HashMap<>();
         this.printfFormatStrings = new HashMap<>();
         this.scanfFormatStrings = new HashMap<>(); // Inicializa o mapa do scanf
@@ -136,9 +138,21 @@ public class GoCodegenVisitor {
                 return ptrReg;
             }
             case ID_NODE:           return visitIdNode(node);
-            case INDEX_NODE:       return visitIndexNode(node);
+            case INDEX_NODE:        return visitIndexNode(node);
+            case COMPOSITE_LITERAL_NODE: return visitCompositeLiteralNode(node);
+            
+            // Lists and specifications (mostly just visit children)
+            case EXPR_LIST_NODE:
+            case IDENTIFIER_LIST_NODE:
+            case PARAM_LIST_NODE:
+            case EXPR_STMT_NODE:
+                for (AST child : node.getChildren()) {
+                    visit(child);
+                }
+                return "";
 
             default:
+                System.err.println("WARNING: Unhandled node type: " + node.kind + " (text: " + node.text + ")");
                 for (AST child : node.getChildren()) {
                     visit(child);
                 }
@@ -485,18 +499,41 @@ public class GoCodegenVisitor {
             String varName = idNode.text;
             GoType varType = idNode.getAnnotatedType();
             String llvmAllocType = getLLVMTypeForAlloc(varType);
-            String pointerName = "%" + varName + ".addr";
-
-            emit(pointerName + " = alloca " + llvmAllocType);
             
-            symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
-
-            if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
-                String value = visit(exprListNode.getChild(exprIndex));
-                if (!varType.isArray()) { // A inicialização de strings com literais não é tratada aqui
-                    emit("store " + getLLVMType(varType) + " " + value + ", " + getLLVMType(varType) + "* " + pointerName);
+            // Check if we're in a function scope or global scope
+            if (symbolTable.isEmpty()) {
+                // Global variable - create as global
+                String globalName = "@" + varName + ".global";
+                headerBuilder.append(globalName).append(" = global ")
+                             .append(llvmAllocType).append(" ");
+                
+                // Initialize with default value
+                if (varType.isInteger()) {
+                    headerBuilder.append("0");
+                } else if (varType.isFloat()) {
+                    headerBuilder.append("0.0");
+                } else if (varType == GoType.BOOL) {
+                    headerBuilder.append("false");
+                } else {
+                    headerBuilder.append("zeroinitializer");
                 }
-                exprIndex++;
+                headerBuilder.append("\n");
+                
+                // Add to global symbol table
+                globalSymbols.put(varName, new SymbolTableEntry(false, globalName, varType));
+            } else {
+                // Local variable
+                String pointerName = "%" + varName + ".addr";
+                emit(pointerName + " = alloca " + llvmAllocType);
+                symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
+
+                if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
+                    String value = visit(exprListNode.getChild(exprIndex));
+                    if (!varType.isArray()) {
+                        emit("store " + getLLVMType(varType) + " " + value + ", " + getLLVMType(varType) + "* " + pointerName);
+                    }
+                    exprIndex++;
+                }
             }
         }
         return "";
@@ -534,6 +571,11 @@ public class GoCodegenVisitor {
         AST lvalueNode = node.getChild(0);
         AST rvalueNode = node.getChild(1);
         
+        if (lvalueNode == null || rvalueNode == null) {
+            // Handle null children gracefully - this may be due to unsupported AST structures
+            return "";
+        }
+        
         if (lvalueNode.kind == NodeKind.INDEX_NODE) {
             AST arrayNode = lvalueNode.getChild(0);
             AST indexNode = lvalueNode.getChild(1);
@@ -554,7 +596,23 @@ public class GoCodegenVisitor {
             emit("store " + elementLLVMType + " " + value + ", " + elementLLVMType + "* " + elementPtr);
         } else {
             String varName = lvalueNode.text;
-            SymbolTableEntry entry = symbolTable.peek().get(varName);
+            SymbolTableEntry entry = null;
+            
+            // First try to find in local scope
+            if (!symbolTable.isEmpty()) {
+                entry = symbolTable.peek().get(varName);
+            }
+            
+            // If not found in local scope, try global scope
+            if (entry == null) {
+                entry = globalSymbols.get(varName);
+            }
+            
+            if (entry == null) {
+                System.err.println("ERROR: Variable not found for assignment: " + varName);
+                return "";
+            }
+            
             // Atribuição a strings não é suportada (requer strcpy)
             if (entry.type == GoType.STRING) {
                 // Ignora por enquanto
@@ -676,12 +734,22 @@ public class GoCodegenVisitor {
         }
 
         AST funcDecl = functionDeclarations.get(funcName);
+        if (funcDecl == null) {
+            // Function not found in declarations (built-in or undefined)
+            // For built-in functions, we handle them above
+            // For user functions, this shouldn't happen, but handle gracefully
+            System.err.println("WARNING: Function declaration not found: " + funcName);
+            return "";
+        }
+        
         AST paramListNode = funcDecl.getChild(1);
         List<String> typedArgs = new ArrayList<>();
         for (int i = 0; i < argValues.size(); i++) {
-            AST paramNode = paramListNode.getChild(i).getChild(0);
-            String paramType = getLLVMType(paramNode.getAnnotatedType());
-            typedArgs.add(paramType + " " + argValues.get(i));
+            if (i < paramListNode.getChildCount()) {
+                AST paramNode = paramListNode.getChild(i).getChild(0);
+                String paramType = getLLVMType(paramNode.getAnnotatedType());
+                typedArgs.add(paramType + " " + argValues.get(i));
+            }
         }
         String argsString = String.join(", ", typedArgs);
 
@@ -817,7 +885,22 @@ public class GoCodegenVisitor {
      */
     private String visitIdNode(AST node) {
         String varName = node.text;
-        SymbolTableEntry entry = symbolTable.peek().get(varName);
+        SymbolTableEntry entry = null;
+        
+        // First try to find in local scope
+        if (!symbolTable.isEmpty()) {
+            entry = symbolTable.peek().get(varName);
+        }
+        
+        // If not found in local scope, try global scope
+        if (entry == null) {
+            entry = globalSymbols.get(varName);
+        }
+        
+        if (entry == null) {
+            System.err.println("ERROR: Variable not found: " + varName);
+            return ""; // Or throw an exception
+        }
 
         if (entry.isConstant) {
             return entry.value;
@@ -861,6 +944,37 @@ public class GoCodegenVisitor {
         emit(elementValue + " = load " + elementLLVMType + ", " + elementLLVMType + "* " + elementPtr);
         
         return elementValue;
+    }
+
+    private String visitCompositeLiteralNode(AST node) {
+        // Handle composite literals - this is a simplified implementation
+        GoType arrayType = node.getAnnotatedType();
+        
+        if (arrayType == null) {
+            // If type is not annotated, skip for now
+            return "";
+        }
+        
+        String arrayBaseType = getLLVMType(arrayType).replace("*", "");
+        
+        // Create a temporary array and initialize it
+        String arrayPtr = newReg();
+        emit(arrayPtr + " = alloca " + arrayBaseType);
+        
+        // Initialize elements if present
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AST elementNode = node.getChild(i);
+            String elementValue = visit(elementNode);
+            GoType elementType = arrayType.getElementType();
+            String elementLLVMType = getLLVMType(elementType);
+            
+            String elementPtr = newReg();
+            emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
+                 getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + i);
+            emit("store " + elementLLVMType + " " + elementValue + ", " + elementLLVMType + "* " + elementPtr);
+        }
+        
+        return arrayPtr;
     }
 
     // --- Literais ---
