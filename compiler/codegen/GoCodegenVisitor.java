@@ -41,6 +41,7 @@ public class GoCodegenVisitor {
 
     // Tabela de símbolos agora armazena SymbolTableEntry
     private Stack<Map<String, SymbolTableEntry>> symbolTable;
+    private Map<String, SymbolTableEntry> globalSymbols; // Para variáveis globais
     
     private Map<String, AST> functionDeclarations;
     private Map<GoType, String> printfFormatStrings;
@@ -57,6 +58,7 @@ public class GoCodegenVisitor {
         this.labelCounter = 0;
         this.strCounter = 0;
         this.symbolTable = new Stack<>();
+        this.globalSymbols = new HashMap<>();
         this.functionDeclarations = new HashMap<>();
         this.printfFormatStrings = new HashMap<>();
         this.scanfFormatStrings = new HashMap<>(); // Inicializa o mapa do scanf
@@ -497,18 +499,41 @@ public class GoCodegenVisitor {
             String varName = idNode.text;
             GoType varType = idNode.getAnnotatedType();
             String llvmAllocType = getLLVMTypeForAlloc(varType);
-            String pointerName = "%" + varName + ".addr";
-
-            emit(pointerName + " = alloca " + llvmAllocType);
             
-            symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
-
-            if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
-                String value = visit(exprListNode.getChild(exprIndex));
-                if (!varType.isArray()) { // A inicialização de strings com literais não é tratada aqui
-                    emit("store " + getLLVMType(varType) + " " + value + ", " + getLLVMType(varType) + "* " + pointerName);
+            // Check if we're in a function scope or global scope
+            if (symbolTable.isEmpty()) {
+                // Global variable - create as global
+                String globalName = "@" + varName + ".global";
+                headerBuilder.append(globalName).append(" = global ")
+                             .append(llvmAllocType).append(" ");
+                
+                // Initialize with default value
+                if (varType.isInteger()) {
+                    headerBuilder.append("0");
+                } else if (varType.isFloat()) {
+                    headerBuilder.append("0.0");
+                } else if (varType == GoType.BOOL) {
+                    headerBuilder.append("false");
+                } else {
+                    headerBuilder.append("zeroinitializer");
                 }
-                exprIndex++;
+                headerBuilder.append("\n");
+                
+                // Add to global symbol table
+                globalSymbols.put(varName, new SymbolTableEntry(false, globalName, varType));
+            } else {
+                // Local variable
+                String pointerName = "%" + varName + ".addr";
+                emit(pointerName + " = alloca " + llvmAllocType);
+                symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
+
+                if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
+                    String value = visit(exprListNode.getChild(exprIndex));
+                    if (!varType.isArray()) {
+                        emit("store " + getLLVMType(varType) + " " + value + ", " + getLLVMType(varType) + "* " + pointerName);
+                    }
+                    exprIndex++;
+                }
             }
         }
         return "";
@@ -571,7 +596,23 @@ public class GoCodegenVisitor {
             emit("store " + elementLLVMType + " " + value + ", " + elementLLVMType + "* " + elementPtr);
         } else {
             String varName = lvalueNode.text;
-            SymbolTableEntry entry = symbolTable.peek().get(varName);
+            SymbolTableEntry entry = null;
+            
+            // First try to find in local scope
+            if (!symbolTable.isEmpty()) {
+                entry = symbolTable.peek().get(varName);
+            }
+            
+            // If not found in local scope, try global scope
+            if (entry == null) {
+                entry = globalSymbols.get(varName);
+            }
+            
+            if (entry == null) {
+                System.err.println("ERROR: Variable not found for assignment: " + varName);
+                return "";
+            }
+            
             // Atribuição a strings não é suportada (requer strcpy)
             if (entry.type == GoType.STRING) {
                 // Ignora por enquanto
@@ -693,12 +734,22 @@ public class GoCodegenVisitor {
         }
 
         AST funcDecl = functionDeclarations.get(funcName);
+        if (funcDecl == null) {
+            // Function not found in declarations (built-in or undefined)
+            // For built-in functions, we handle them above
+            // For user functions, this shouldn't happen, but handle gracefully
+            System.err.println("WARNING: Function declaration not found: " + funcName);
+            return "";
+        }
+        
         AST paramListNode = funcDecl.getChild(1);
         List<String> typedArgs = new ArrayList<>();
         for (int i = 0; i < argValues.size(); i++) {
-            AST paramNode = paramListNode.getChild(i).getChild(0);
-            String paramType = getLLVMType(paramNode.getAnnotatedType());
-            typedArgs.add(paramType + " " + argValues.get(i));
+            if (i < paramListNode.getChildCount()) {
+                AST paramNode = paramListNode.getChild(i).getChild(0);
+                String paramType = getLLVMType(paramNode.getAnnotatedType());
+                typedArgs.add(paramType + " " + argValues.get(i));
+            }
         }
         String argsString = String.join(", ", typedArgs);
 
@@ -834,7 +885,22 @@ public class GoCodegenVisitor {
      */
     private String visitIdNode(AST node) {
         String varName = node.text;
-        SymbolTableEntry entry = symbolTable.peek().get(varName);
+        SymbolTableEntry entry = null;
+        
+        // First try to find in local scope
+        if (!symbolTable.isEmpty()) {
+            entry = symbolTable.peek().get(varName);
+        }
+        
+        // If not found in local scope, try global scope
+        if (entry == null) {
+            entry = globalSymbols.get(varName);
+        }
+        
+        if (entry == null) {
+            System.err.println("ERROR: Variable not found: " + varName);
+            return ""; // Or throw an exception
+        }
 
         if (entry.isConstant) {
             return entry.value;

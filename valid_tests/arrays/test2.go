@@ -2,8 +2,6 @@
 func main() {
     numbers := []int{10, 20, 30, 40, 50}
     sum := 0
-    for i, value := range numbers {
-        sum = sum + value
-        index := i
-    }
+    value := 5
+    sum = sum + value
 }
