@@ -1,5 +1,6 @@
 package compiler;
 
+import java.io.FileWriter; // <-- PASSO 1: Importar FileWriter
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -16,7 +17,7 @@ import compiler.ast.AST;
 import compiler.ast.ASTPrinter;
 import compiler.checker.GoSemanticChecker;
 import compiler.interpreter.GoInterpreter;
-import compiler.codegen.GoCodegenVisitor; // <-- IMPORT ADICIONADO
+import compiler.codegen.GoCodegenVisitor;
 
 public class Main {
 
@@ -67,7 +68,6 @@ public class Main {
             AST ast = checker.visit(tree);
             checker.printReport();
 
-            // Verifica se ocorreram erros
             if (checker.hasSemanticErrors() || parser.getNumberOfSyntaxErrors() > 0) {
                 System.err.println("\nRESULTADO: Compilação falhou devido a erros.");
                 return;
@@ -81,14 +81,28 @@ public class Main {
                 GoCodegenVisitor codegen = new GoCodegenVisitor();
                 String llvmIr = codegen.run(ast);
                 
-                System.out.println("\n--- INÍCIO DO CÓDIGO LLVM IR ---");
-                System.out.println(llvmIr);
-                System.out.println("--- FIM DO CÓDIGO LLVM IR ---\n");
+                // --- PASSO 2: Determinar o nome do arquivo de saída ---
+                String outputFilePath;
+                int dotIndex = filePath.lastIndexOf('.');
+                if (dotIndex > 0) {
+                    outputFilePath = filePath.substring(0, dotIndex) + ".ll";
+                } else {
+                    outputFilePath = filePath + ".ll";
+                }
+
+                // --- PASSO 3: Escrever o código LLVM no arquivo ---
+                try (FileWriter writer = new FileWriter(outputFilePath)) {
+                    writer.write(llvmIr);
+                    System.out.println("✅ Código LLVM IR gerado com sucesso em: " + outputFilePath);
+                } catch (IOException e) {
+                    System.err.println("❌ Erro ao escrever o arquivo de saída: " + e.getMessage());
+                }
                 
-                System.out.println("Para executar o código gerado (requer LLVM instalado):");
-                System.out.println("1. Guarde a saída em um arquivo (ex: output.ll)");
-                System.out.println("2. Execute com o interpretador LLVM: lli output.ll");
-                System.out.println("3. Verifique o código de saída: echo $?");
+                // --- PASSO 4: Atualizar as instruções para o usuário ---
+                System.out.println("\nPara criar um executável (requer LLVM/Clang instalado):");
+                System.out.println("1. Compile o arquivo .ll para assembly: llc " + outputFilePath + " -o " + outputFilePath.replace(".ll", ".s"));
+                System.out.println("2. Crie o executável a partir do assembly: clang " + outputFilePath.replace(".ll", ".s") + " -o myprogram");
+                System.out.println("3. Execute o programa: ./myprogram");
 
             } else {
                 // --- 4. MODO INTERPRETADOR ---
