@@ -7,17 +7,20 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 public class GoInterpreter {
 
     private final Memory memory;
     private final OperandStack stack;
     private final Map<String, AST> functionDeclarations;
+    private final Scanner scanner;
 
     public GoInterpreter() {
         this.memory = new Memory();
         this.stack = new OperandStack();
         this.functionDeclarations = new HashMap<>();
+        this.scanner = new Scanner(System.in);
     }
 
     public void execute(AST root) {
@@ -526,14 +529,17 @@ public class GoInterpreter {
     }
     
     private boolean isBuiltIn(String funcName) {
-        return funcName.equals("println");
+        return funcName.equals("println") || funcName.equals("scanln");
     }
+    
     private void handleBuiltIn(String funcName, AST callNode) {
         if ("println".equals(funcName)) {
             List<Object> valuesToPrint = new ArrayList<>();
+            // Primeiro, visita todos os filhos para empilhar seus valores
             for (int i = 1; i < callNode.getChildCount(); i++) {
                 visit(callNode.getChild(i));
             }
+            // Depois, desempilha na ordem correta
             for (int i = callNode.getChildCount() - 1; i >= 1; i--) {
                 GoType argType = callNode.getChild(i).getAnnotatedType();
                 if (argType == GoType.INT) valuesToPrint.add(0, stack.popInt());
@@ -549,6 +555,49 @@ public class GoInterpreter {
                 }
             }
             System.out.println();
+        } else if ("scanln".equals(funcName)) {
+            int successfulScans = 0;
+            // Itera sobre os argumentos, que devem ser variáveis
+            for (int i = 1; i < callNode.getChildCount(); i++) {
+                AST argNode = callNode.getChild(i);
+
+                // O argumento para scanln deve ser uma variável (ID_NODE)
+                if (argNode.kind != NodeKind.ID_NODE) {
+                    System.err.println("Erro de execução: argumento para scanln deve ser uma variável.");
+                    continue;
+                }
+
+                String varName = argNode.text;
+                GoType varType = argNode.getAnnotatedType();
+
+                try {
+                    // Lê a próxima entrada do console (separada por espaço/enter)
+                    if (scanner.hasNext()) {
+                        String input = scanner.next();
+                        
+                        // Converte a string de entrada para o tipo da variável
+                        if (varType == GoType.INT) {
+                            memory.update(varName, Integer.parseInt(input));
+                        } else if (varType == GoType.FLOAT64) {
+                            memory.update(varName, Float.parseFloat(input));
+                        } else if (varType == GoType.BOOL) {
+                            memory.update(varName, Boolean.parseBoolean(input));
+                        } else if (varType == GoType.STRING) {
+                            memory.update(varName, input);
+                        }
+                        successfulScans++;
+                    }
+                } catch (NumberFormatException e) {
+                    System.err.println("Erro de execução: entrada '" + e.getMessage() + "' não corresponde ao tipo esperado " + varType);
+                    // Em caso de erro, a variável mantém seu valor ou pode-se atribuir um valor zero
+                }
+            }
+             // Consome o resto da linha (comportamento do Scanln)
+            if (scanner.hasNextLine()) {
+                scanner.nextLine();
+            }
+            // Empilha o número de leituras bem-sucedidas (o valor de retorno de scanln)
+            stack.pushInt(successfulScans);
         }
     }
     private void popAndDeclare(String varName, GoType type) {

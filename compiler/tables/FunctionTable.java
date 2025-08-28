@@ -37,12 +37,11 @@ public class FunctionTable {
         markAsDefined("len");
 
         // Função scanln
-        List<String> scanfParamNames = new ArrayList<>();
-        List<GoType> scanfParamTypes = new ArrayList<>();
-        scanfParamNames.add("format");
-        scanfParamTypes.add(GoType.STRING);
-        addFunction("scanln", scanfParamNames, scanfParamTypes, GoType.INT, 0);
+        List<String> scanlnParamNames = new ArrayList<>(); // Lista de nomes vazia
+        List<GoType> scanlnParamTypes = new ArrayList<>(); // Lista de tipos vazia
+        addFunction("scanln", scanlnParamNames, scanlnParamTypes, GoType.INT, 0);
         markAsDefined("scanln");
+
     }
     
     /**

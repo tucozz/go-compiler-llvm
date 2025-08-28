@@ -947,9 +947,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         }
     }
 
-     /**
-     * Processa chamadas de função, com tratamento especial para a função nativa 'println'.
-     */
+    /**
+    * Processa chamadas de função, com tratamento especial para a função nativa 'println' e 'scanln'.
+    */
     @Override
     public AST visitCallExpression(Go_Parser.CallExpressionContext ctx) {
         String functionName = ctx.ID().getText();
@@ -959,9 +959,9 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
         AST funcIdNode = AST.id(functionName, ctx.ID().getSymbol().getLine(), 0);
         callNode.addChild(funcIdNode);
 
-        // --- Lógica de Tratamento Especial para 'println' ---
+        // --- Lógica de Tratamento Especial para Funções Variádicas (println, scanln) ---
         if (isBuiltInFunction(functionName)) {
-            // Para println, aceitamos qualquer número de argumentos.
+            // Para funções built-in variádicas, aceitamos qualquer número de argumentos.
             // Apenas visitamos cada expressão de argumento para garantir que ela seja semanticamente válida.
             if (ctx.expressionList() != null) {
                 Go_Parser.ExprListContext exprList = (Go_Parser.ExprListContext) ctx.expressionList();
@@ -969,8 +969,15 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
                     callNode.addChild(visit(exprCtx));
                 }
             }
-            // println não tem tipo de retorno.
-            callNode.setAnnotatedType(GoType.VOID);
+            
+            // Define o tipo de retorno baseado na FunctionTable
+            FunctionInfo funcInfo = functionTable.getFunction(functionName);
+            if (funcInfo != null) {
+                callNode.setAnnotatedType(funcInfo.getReturnType());
+                funcIdNode.setAnnotatedType(funcInfo.getReturnType());
+            } else {
+                 callNode.setAnnotatedType(GoType.VOID); // Fallback
+            }
 
         } else {
             // --- Lógica Padrão para Funções Definidas pelo Usuário ---
@@ -1018,7 +1025,7 @@ public class GoSemanticChecker extends Go_ParserBaseVisitor<AST> {
      * Verifica se uma função é built-in do Go
      */
     private boolean isBuiltInFunction(String functionName) {
-        return "println".equals(functionName) || "len".equals(functionName);
+        return "println".equals(functionName) || "len".equals(functionName) || "scanln".equals(functionName);
     }
 
 

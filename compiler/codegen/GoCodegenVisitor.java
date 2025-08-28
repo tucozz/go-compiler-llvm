@@ -41,7 +41,8 @@ public class GoCodegenVisitor {
     
     private Map<String, AST> functionDeclarations;
     private Map<GoType, String> printfFormatStrings;
-    
+    private Map<GoType, String> scanfFormatStrings; // Cache para strings de formato do scanf
+
     private Stack<String> loopPostLabels;
     private Stack<String> loopEndLabels;
 
@@ -55,12 +56,15 @@ public class GoCodegenVisitor {
         this.symbolTable = new Stack<>();
         this.functionDeclarations = new HashMap<>();
         this.printfFormatStrings = new HashMap<>();
+        this.scanfFormatStrings = new HashMap<>(); // Inicializa o mapa do scanf
         this.loopPostLabels = new Stack<>();
         this.loopEndLabels = new Stack<>();
     }
 
     public String run(AST root) {
-        headerBuilder.append("declare i32 @printf(i8*, ...)\n\n");
+        // Declara as funções da biblioteca C que serão usadas
+        headerBuilder.append("declare i32 @printf(i8*, ...)\n");
+        headerBuilder.append("declare i32 @scanf(i8*, ...)\n\n");
 
         for (AST child : root.getChildren()) {
             if (child.kind == NodeKind.FUNC_DECL_NODE) {
@@ -89,8 +93,8 @@ public class GoCodegenVisitor {
             case BREAK_NODE:        return visitBreakNode(node);
             case CONTINUE_NODE:     return visitContinueNode(node);
             case INC_DEC_STMT_NODE: return visitIncDecStmtNode(node);
-            case CONST_DECL_NODE:   return visitConstDeclNode(node); // <-- NOVO
-            case CONST_SPEC_NODE:   return visitConstSpecNode(node); // <-- NOVO
+            case CONST_DECL_NODE:   return visitConstDeclNode(node);
+            case CONST_SPEC_NODE:   return visitConstSpecNode(node);
             case VAR_DECL_NODE:     return visitVarDeclNode(node);
             case VAR_SPEC_NODE:     return visitVarSpecNode(node);
             case SHORT_VAR_DECL_NODE: return visitShortVarDeclNode(node);
@@ -147,9 +151,10 @@ public class GoCodegenVisitor {
     
     private String createGlobalString(String value, String namePrefix) {
         String strName = "@" + namePrefix + "." + strCounter++;
+        String escapedValue = value.replace("\\", "\\5C"); // LLVM requer que a barra invertida seja escapada
         int len = value.length() + 1;
         headerBuilder.append(strName).append(" = private unnamed_addr constant [")
-                     .append(len).append(" x i8] c\"").append(value).append("\\00\"\n");
+                     .append(len).append(" x i8] c\"").append(escapedValue).append("\\00\"\n");
         return strName;
     }
 
@@ -162,10 +167,10 @@ public class GoCodegenVisitor {
             case BOOL: return "i1";
             case FLOAT64: return "double";
             case STRING: return "i8*";
-            case ARRAY_INT: return "[10 x i32]*"; // Array de 10 inteiros (tamanho fixo por enquanto)
-            case ARRAY_BOOL: return "[10 x i1]*"; // Array de 10 booleanos
-            case ARRAY_FLOAT64: return "[10 x double]*"; // Array de 10 floats
-            case ARRAY_STRING: return "[10 x i8*]*"; // Array de 10 ponteiros para string
+            case ARRAY_INT: return "[10 x i32]*"; // Tamanho fixo por enquanto
+            case ARRAY_BOOL: return "[10 x i1]*";
+            case ARRAY_FLOAT64: return "[10 x double]*";
+            case ARRAY_STRING: return "[10 x i8*]*";
             case VOID: return "void";
             default: return "void";
         }
@@ -177,10 +182,10 @@ public class GoCodegenVisitor {
             case BOOL: return "i1";
             case FLOAT64: return "double";
             case STRING: return "i8*";
-            case ARRAY_INT: return "[10 x i32]"; // Array de 10 inteiros (sem ponteiro para alocação)
-            case ARRAY_BOOL: return "[10 x i1]"; // Array de 10 booleanos
-            case ARRAY_FLOAT64: return "[10 x double]"; // Array de 10 floats
-            case ARRAY_STRING: return "[10 x i8*]"; // Array de 10 ponteiros para string
+            case ARRAY_INT: return "[10 x i32]";
+            case ARRAY_BOOL: return "[10 x i1]";
+            case ARRAY_FLOAT64: return "[10 x double]";
+            case ARRAY_STRING: return "[10 x i8*]";
             case VOID: return "void";
             default: return "void";
         }
@@ -197,8 +202,25 @@ public class GoCodegenVisitor {
             case STRING: formatSpecifier = "%s\\0A"; break;
             default: formatSpecifier = "Unsupported type\\0A";
         }
-        String formatStrName = createGlobalString(formatSpecifier, ".fmt");
+        String formatStrName = createGlobalString(formatSpecifier, ".fmt.printf");
         printfFormatStrings.put(type, formatStrName);
+        return formatStrName;
+    }
+
+    private String getOrCreateScanfFormatString(GoType type) {
+        if (scanfFormatStrings.containsKey(type)) {
+            return scanfFormatStrings.get(type);
+        }
+        String formatSpecifier;
+        switch (type) {
+            case INT: case INT32: formatSpecifier = "%d"; break;
+            case BOOL: formatSpecifier = "%d"; break; // Lê bool como inteiro (0 ou 1)
+            case FLOAT64: formatSpecifier = "%lf"; break; // %lf para ler em um double
+            case STRING: formatSpecifier = "%s"; break; // Simplificado
+            default: formatSpecifier = ""; // Tipo não suportado
+        }
+        String formatStrName = createGlobalString(formatSpecifier, ".fmt.scanf");
+        scanfFormatStrings.put(type, formatStrName);
         return formatStrName;
     }
 
@@ -243,10 +265,8 @@ public class GoCodegenVisitor {
             String pointerName = "%" + paramName + ".addr";
 
             if (paramType.isArray()) {
-                // Para arrays, o parâmetro já é um ponteiro, então apenas armazena diretamente
                 symbolTable.peek().put(paramName, new SymbolTableEntry(false, "%" + i, paramType));
             } else {
-                // Para tipos simples, aloca espaço e armazena o valor
                 emit(pointerName + " = alloca " + llvmType);
                 emit("store " + llvmType + " %" + i + ", " + llvmType + "* " + pointerName);
                 symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
@@ -429,7 +449,6 @@ public class GoCodegenVisitor {
             String constName = idNode.text;
             GoType constType = idNode.getAnnotatedType();
             
-            // Evaluate the constant expression at compile time
             String value = evaluateConstantExpression(exprListNode.getChild(exprIndex));
             
             symbolTable.peek().put(constName, new SymbolTableEntry(true, value, constType));
@@ -458,10 +477,8 @@ public class GoCodegenVisitor {
             String pointerName = "%" + varName + ".addr";
 
             if (varType.isArray()) {
-                // Para arrays, aloca espaço na pilha
                 emit(pointerName + " = alloca " + getLLVMTypeForAlloc(varType));
             } else {
-                // Para tipos simples, aloca normalmente
                 emit(pointerName + " = alloca " + llvmType);
             }
             
@@ -469,10 +486,7 @@ public class GoCodegenVisitor {
 
             if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
                 String value = visit(exprListNode.getChild(exprIndex));
-                if (varType.isArray()) {
-                    // Para arrays, o valor deve ser tratado especialmente
-                    // Por enquanto, apenas ignora a inicialização de arrays
-                } else {
+                if (!varType.isArray()) {
                     emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
                 }
                 exprIndex++;
@@ -503,55 +517,27 @@ public class GoCodegenVisitor {
     }
 
     private String visitAssignNode(AST node) {
-        System.out.println("DEBUG: Assignment node has " + node.getChildCount() + " children");
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AST child = node.getChild(i);
-            if (child != null) {
-                System.out.println("DEBUG: Child " + i + " kind: " + child.kind + ", text: " + child.text);
-            } else {
-                System.out.println("DEBUG: Child " + i + " is null");
-            }
-        }
-        
         AST lvalueNode = node.getChild(0);
         AST rvalueNode = node.getChild(1);
-        
-        if (lvalueNode == null || rvalueNode == null) {
-            System.out.println("DEBUG: Skipping assignment with null children");
-            return "";
-        }
         
         if (lvalueNode.kind == NodeKind.INDEX_NODE) {
             // Atribuição para elemento de array: arr[i] = value
             AST arrayNode = lvalueNode.getChild(0);
             AST indexNode = lvalueNode.getChild(1);
             
-            if (arrayNode == null || indexNode == null) {
-                System.out.println("DEBUG: Skipping array assignment with null array or index");
-                return "";
-            }
-            
-            // Visita o array e o índice
             String arrayPtr = visit(arrayNode);
             String indexValue = visit(indexNode);
-            
-            // Visita o valor a ser atribuído
             String value = visit(rvalueNode);
             
-            // Obtém o tipo do elemento
             GoType arrayType = arrayNode.getAnnotatedType();
             GoType elementType = arrayType.getElementType();
             String elementLLVMType = getLLVMType(elementType);
-            
-            // Remove o '*' do final do tipo do array
             String arrayBaseType = getLLVMType(arrayType).replace("*", "");
             
-            // Gera getelementptr para obter o ponteiro do elemento
             String elementPtr = newReg();
             emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
                  getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + indexValue);
             
-            // Armazena o valor no elemento
             emit("store " + elementLLVMType + " " + value + ", " + elementLLVMType + "* " + elementPtr);
         } else {
             // Atribuição normal para variável
@@ -594,9 +580,69 @@ public class GoCodegenVisitor {
                 String formatStrPtr = newReg();
                 emit(formatStrPtr + " = getelementptr inbounds [" + formatStrLen + " x i8], [" + formatStrLen + " x i8]* " + formatStrName + ", i64 0, i64 0");
                 
-                emit("call i32 (i8*, ...) @printf(i8* " + formatStrPtr + ", " + getLLVMType(argType) + " " + argValue + ")");
+                String llvmType = getLLVMType(argType);
+                if (argType == GoType.BOOL) {
+                    String extendedBool = newReg();
+                    emit(extendedBool + " = zext i1 " + argValue + " to i32");
+                    argValue = extendedBool;
+                    llvmType = "i32";
+                }
+
+                emit("call i32 (i8*, ...) @printf(i8* " + formatStrPtr + ", " + llvmType + " " + argValue + ")");
             }
             return "";
+        }
+
+        if (funcName.equals("scanln")) {
+            String totalScannedReg = newReg();
+            emit(totalScannedReg + " = alloca i32");
+            emit("store i32 0, i32* " + totalScannedReg);
+
+            for (int i = 1; i < node.getChildCount(); i++) {
+                AST argNode = node.getChild(i);
+                if (argNode.kind != NodeKind.ID_NODE) {
+                    continue;
+                }
+                
+                String varName = argNode.text;
+                SymbolTableEntry entry = symbolTable.peek().get(varName);
+                String varPtr = entry.value;
+                GoType varType = entry.type;
+
+                String formatStrName = getOrCreateScanfFormatString(varType);
+                if (formatStrName.isEmpty()) continue;
+
+                int formatStrLen = (varType == GoType.FLOAT64) ? 4 : 3;
+
+                String formatStrPtr = newReg();
+                emit(formatStrPtr + " = getelementptr inbounds [" + formatStrLen + " x i8], [" + formatStrLen + " x i8]* " + formatStrName + ", i64 0, i64 0");
+
+                String scanResultReg = newReg();
+                if (varType == GoType.BOOL) {
+                    String tempInt = newReg();
+                    emit(tempInt + " = alloca i32");
+                    emit(scanResultReg + " = call i32 (i8*, ...) @scanf(i8* " + formatStrPtr + ", i32* " + tempInt + ")");
+                    
+                    String loadedInt = newReg();
+                    emit(loadedInt + " = load i32, i32* " + tempInt);
+                    
+                    String boolResult = newReg();
+                    emit(boolResult + " = icmp ne i32 " + loadedInt + ", 0");
+                    emit("store i1 " + boolResult + ", i1* " + varPtr);
+                } else {
+                    emit(scanResultReg + " = call i32 (i8*, ...) @scanf(i8* " + formatStrPtr + ", " + getLLVMType(varType) + "* " + varPtr + ")");
+                }
+
+                String currentTotal = newReg();
+                emit(currentTotal + " = load i32, i32* " + totalScannedReg);
+                String newTotal = newReg();
+                emit(newTotal + " = add nsw i32 " + currentTotal + ", " + scanResultReg);
+                emit("store i32 " + newTotal + ", i32* " + totalScannedReg);
+            }
+
+            String finalCount = newReg();
+            emit(finalCount + " = load i32, i32* " + totalScannedReg);
+            return finalCount;
         }
 
         List<String> argValues = new ArrayList<>();
@@ -653,7 +699,7 @@ public class GoCodegenVisitor {
 
         if (type.isFloat()) {
             emit(destReg + " = fsub " + llvmType + " 0.0, " + value);
-        } else { // Integer
+        } else {
             emit(destReg + " = sub nsw " + llvmType + " 0, " + value);
         }
         return destReg;
@@ -745,13 +791,11 @@ public class GoCodegenVisitor {
         SymbolTableEntry entry = symbolTable.peek().get(varName);
 
         if (entry.isConstant) {
-            return entry.value; // Retorna o valor literal diretamente
+            return entry.value;
         } else {
-            // Para arrays, retorna o ponteiro diretamente
             if (entry.type.isArray()) {
                 return entry.value;
             } else {
-                // Para variáveis simples, carrega o valor do ponteiro
                 String pointerName = entry.value;
                 String llvmType = getLLVMType(entry.type);
                 String destReg = newReg();
@@ -762,29 +806,21 @@ public class GoCodegenVisitor {
     }
 
     private String visitIndexNode(AST node) {
-        AST arrayNode = node.getChild(0); // Nó do array
-        AST indexNode = node.getChild(1); // Nó do índice
+        AST arrayNode = node.getChild(0);
+        AST indexNode = node.getChild(1);
         
-        // Visita o nó do array para obter seu ponteiro
         String arrayPtr = visit(arrayNode);
-        
-        // Visita o nó do índice para obter o valor do índice
         String indexValue = visit(indexNode);
         
-        // Obtém o tipo do elemento do array
         GoType arrayType = arrayNode.getAnnotatedType();
         GoType elementType = arrayType.getElementType();
         String elementLLVMType = getLLVMType(elementType);
-        
-        // Remove o '*' do final do tipo do array para obter o tipo base
         String arrayBaseType = getLLVMType(arrayType).replace("*", "");
         
-        // Gera getelementptr para acessar o elemento
         String elementPtr = newReg();
         emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
              getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + indexValue);
         
-        // Carrega o valor do elemento
         String elementValue = newReg();
         emit(elementValue + " = load " + elementLLVMType + ", " + elementLLVMType + "* " + elementPtr);
         
