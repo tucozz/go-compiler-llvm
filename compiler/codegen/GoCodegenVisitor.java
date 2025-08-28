@@ -136,9 +136,21 @@ public class GoCodegenVisitor {
                 return ptrReg;
             }
             case ID_NODE:           return visitIdNode(node);
-            case INDEX_NODE:       return visitIndexNode(node);
+            case INDEX_NODE:        return visitIndexNode(node);
+            case COMPOSITE_LITERAL_NODE: return visitCompositeLiteralNode(node);
+            
+            // Lists and specifications (mostly just visit children)
+            case EXPR_LIST_NODE:
+            case IDENTIFIER_LIST_NODE:
+            case PARAM_LIST_NODE:
+            case EXPR_STMT_NODE:
+                for (AST child : node.getChildren()) {
+                    visit(child);
+                }
+                return "";
 
             default:
+                System.err.println("WARNING: Unhandled node type: " + node.kind + " (text: " + node.text + ")");
                 for (AST child : node.getChildren()) {
                     visit(child);
                 }
@@ -534,6 +546,11 @@ public class GoCodegenVisitor {
         AST lvalueNode = node.getChild(0);
         AST rvalueNode = node.getChild(1);
         
+        if (lvalueNode == null || rvalueNode == null) {
+            // Handle null children gracefully - this may be due to unsupported AST structures
+            return "";
+        }
+        
         if (lvalueNode.kind == NodeKind.INDEX_NODE) {
             AST arrayNode = lvalueNode.getChild(0);
             AST indexNode = lvalueNode.getChild(1);
@@ -861,6 +878,37 @@ public class GoCodegenVisitor {
         emit(elementValue + " = load " + elementLLVMType + ", " + elementLLVMType + "* " + elementPtr);
         
         return elementValue;
+    }
+
+    private String visitCompositeLiteralNode(AST node) {
+        // Handle composite literals - this is a simplified implementation
+        GoType arrayType = node.getAnnotatedType();
+        
+        if (arrayType == null) {
+            // If type is not annotated, skip for now
+            return "";
+        }
+        
+        String arrayBaseType = getLLVMType(arrayType).replace("*", "");
+        
+        // Create a temporary array and initialize it
+        String arrayPtr = newReg();
+        emit(arrayPtr + " = alloca " + arrayBaseType);
+        
+        // Initialize elements if present
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AST elementNode = node.getChild(i);
+            String elementValue = visit(elementNode);
+            GoType elementType = arrayType.getElementType();
+            String elementLLVMType = getLLVMType(elementType);
+            
+            String elementPtr = newReg();
+            emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
+                 getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + i);
+            emit("store " + elementLLVMType + " " + elementValue + ", " + elementLLVMType + "* " + elementPtr);
+        }
+        
+        return arrayPtr;
     }
 
     // --- Literais ---
