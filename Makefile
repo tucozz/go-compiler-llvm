@@ -75,32 +75,3 @@ clean:
 	@rm -f $(GRAMMAR_BASE_DIR)/*.interp
 	@rm -rf $(COMPILER_BIN_DIR) # Adicionado para limpar os binários do seu compilador
 
-.PHONY: all antlr antlr-lexer antlr-parser javac compiler_javac run_compiler clean
-# Mostra informações sobre o projeto
-info:
-	@echo "📖 COMPILADOR GO - INFORMAÇÕES DO PROJETO"
-	@echo ""
-	@echo "Estrutura:"
-	@echo "  📁 grammar/          - Gramáticas ANTLR (.g)"
-	@echo "  📁 compiler/         - Código fonte Java"
-	@echo "  📁 invalid_tests/    - Testes inválidos"
-	@echo "  📁 valid_tests/      - Testes válidos"
-	@echo "  📁 tools/            - ANTLR JAR"
-	@echo "  📁 bin/              - Classes compiladas"
-	@echo ""
-	@echo "Comandos principais:"
-	@echo "  make all             - Compila tudo (ANTLR + Java)"
-	@echo "  make run_compiler FILE=... - Testa arquivo Go (compila antes)"
-	@echo "  make run_compiler_fast FILE=... - Testa arquivo Go (rápido)"
-	@echo "  make test_semantic_batch - Testa todos os valid_tests automaticamente"
-
-	@echo "  make clean           - Remove arquivos gerados"
-	@echo ""
-	@echo "Exemplo:"
-	@echo "  make test FILE=tests/arithmetics/test01/main.go"
-	@echo ""
-
-# Mostra ajuda
-help: info
-
-.PHONY: all antlr antlr-lexer antlr-parser javac compiler_javac run_compiler run_compiler_fast test_semantic_batch clean info help
