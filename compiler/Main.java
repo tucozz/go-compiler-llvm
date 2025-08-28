@@ -40,7 +40,7 @@ public class Main {
         }
 
         if (filePath.isEmpty()) {
-            System.err.println("Erro: Ficheiro de entrada não especificado.");
+            System.err.println("Erro: Arquivo de entrada não especificado.");
             return;
         }
         
@@ -77,7 +77,7 @@ public class Main {
 
             if (compileMode) {
                 // --- 4. GERAÇÃO DE CÓDIGO LLVM ---
-                System.out.println(">>> A gerar código LLVM IR...");
+                System.out.println(">>> Gerando código LLVM IR...");
                 GoCodegenVisitor codegen = new GoCodegenVisitor();
                 String llvmIr = codegen.run(ast);
                 
@@ -86,13 +86,13 @@ public class Main {
                 System.out.println("--- FIM DO CÓDIGO LLVM IR ---\n");
                 
                 System.out.println("Para executar o código gerado (requer LLVM instalado):");
-                System.out.println("1. Guarde a saída num ficheiro (ex: output.ll)");
+                System.out.println("1. Guarde a saída em um arquivo (ex: output.ll)");
                 System.out.println("2. Execute com o interpretador LLVM: lli output.ll");
                 System.out.println("3. Verifique o código de saída: echo $?");
 
             } else {
                 // --- 4. MODO INTERPRETADOR ---
-                System.out.println(">>> A gerar Abstract Syntax Tree (AST)...");
+                System.out.println(">>> Gerando Abstract Syntax Tree (AST)...");
                 if (ast != null) {
                     System.out.println("Para visualizar a árvore, copie o código DOT abaixo");
                     System.out.println("e cole num visualizador como: https://dreampuf.github.io/GraphvizOnline/");
@@ -101,7 +101,7 @@ public class Main {
                     System.out.println("--- FIM DO CÓDIGO DOT ---\n");
                 }
 
-                System.out.println(">>> A executar o interpretador...");
+                System.out.println(">>> Executando o interpretador...");
                 GoInterpreter interpreter = new GoInterpreter();
                 interpreter.execute(ast);
                 System.out.println(">>> Execução concluída.");

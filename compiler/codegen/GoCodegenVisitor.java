@@ -121,8 +121,15 @@ public class GoCodegenVisitor {
             case INT_VAL_NODE:      return visitIntValNode(node);
             case REAL_VAL_NODE:     return visitRealValNode(node);
             case BOOL_VAL_NODE:     return visitBoolValNode(node);
-            case STR_VAL_NODE:      return visitStrValNode(node);
+            case STR_VAL_NODE: {
+                String strName = createGlobalString(node.text, ".str");
+                int strLen = node.text.length() + 1;
+                String ptrReg = newReg();
+                emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
+                return ptrReg;
+            }
             case ID_NODE:           return visitIdNode(node);
+            case INDEX_NODE:       return visitIndexNode(node);
 
             default:
                 for (AST child : node.getChildren()) {
@@ -155,6 +162,25 @@ public class GoCodegenVisitor {
             case BOOL: return "i1";
             case FLOAT64: return "double";
             case STRING: return "i8*";
+            case ARRAY_INT: return "[10 x i32]*"; // Array de 10 inteiros (tamanho fixo por enquanto)
+            case ARRAY_BOOL: return "[10 x i1]*"; // Array de 10 booleanos
+            case ARRAY_FLOAT64: return "[10 x double]*"; // Array de 10 floats
+            case ARRAY_STRING: return "[10 x i8*]*"; // Array de 10 ponteiros para string
+            case VOID: return "void";
+            default: return "void";
+        }
+    }
+
+    private String getLLVMTypeForAlloc(GoType goType) {
+        switch (goType) {
+            case INT: case INT32: return "i32";
+            case BOOL: return "i1";
+            case FLOAT64: return "double";
+            case STRING: return "i8*";
+            case ARRAY_INT: return "[10 x i32]"; // Array de 10 inteiros (sem ponteiro para alocação)
+            case ARRAY_BOOL: return "[10 x i1]"; // Array de 10 booleanos
+            case ARRAY_FLOAT64: return "[10 x double]"; // Array de 10 floats
+            case ARRAY_STRING: return "[10 x i8*]"; // Array de 10 ponteiros para string
             case VOID: return "void";
             default: return "void";
         }
@@ -216,9 +242,15 @@ public class GoCodegenVisitor {
             String llvmType = getLLVMType(paramType);
             String pointerName = "%" + paramName + ".addr";
 
-            emit(pointerName + " = alloca " + llvmType);
-            emit("store " + llvmType + " %" + i + ", " + llvmType + "* " + pointerName);
-            symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
+            if (paramType.isArray()) {
+                // Para arrays, o parâmetro já é um ponteiro, então apenas armazena diretamente
+                symbolTable.peek().put(paramName, new SymbolTableEntry(false, "%" + i, paramType));
+            } else {
+                // Para tipos simples, aloca espaço e armazena o valor
+                emit(pointerName + " = alloca " + llvmType);
+                emit("store " + llvmType + " %" + i + ", " + llvmType + "* " + pointerName);
+                symbolTable.peek().put(paramName, new SymbolTableEntry(false, pointerName, paramType));
+            }
         }
 
         visit(bodyNode);
@@ -379,7 +411,6 @@ public class GoCodegenVisitor {
         
         String prefix = llvmType.equals("double") ? "f" : "";
         emit(newValue + " = " + prefix + op + " " + llvmType + " " + currentValue + ", " + one);
-
         emit("store " + llvmType + " " + newValue + ", " + llvmType + "* " + pointerName);
         return "";
     }
@@ -398,8 +429,8 @@ public class GoCodegenVisitor {
             String constName = idNode.text;
             GoType constType = idNode.getAnnotatedType();
             
-            // O valor de uma constante deve ser um literal, então visitá-lo retorna o valor diretamente
-            String value = visit(exprListNode.getChild(exprIndex));
+            // Evaluate the constant expression at compile time
+            String value = evaluateConstantExpression(exprListNode.getChild(exprIndex));
             
             symbolTable.peek().put(constName, new SymbolTableEntry(true, value, constType));
             exprIndex++;
@@ -426,12 +457,24 @@ public class GoCodegenVisitor {
             String llvmType = getLLVMType(varType);
             String pointerName = "%" + varName + ".addr";
 
-            emit(pointerName + " = alloca " + llvmType);
+            if (varType.isArray()) {
+                // Para arrays, aloca espaço na pilha
+                emit(pointerName + " = alloca " + getLLVMTypeForAlloc(varType));
+            } else {
+                // Para tipos simples, aloca normalmente
+                emit(pointerName + " = alloca " + llvmType);
+            }
+            
             symbolTable.peek().put(varName, new SymbolTableEntry(false, pointerName, varType));
 
             if (exprListNode != null && exprIndex < exprListNode.getChildCount()) {
                 String value = visit(exprListNode.getChild(exprIndex));
-                emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
+                if (varType.isArray()) {
+                    // Para arrays, o valor deve ser tratado especialmente
+                    // Por enquanto, apenas ignora a inicialização de arrays
+                } else {
+                    emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
+                }
                 exprIndex++;
             }
         }
@@ -460,13 +503,66 @@ public class GoCodegenVisitor {
     }
 
     private String visitAssignNode(AST node) {
-        String varName = node.getChild(0).text;
-        SymbolTableEntry entry = symbolTable.peek().get(varName);
-        String pointerName = entry.value;
-        String llvmType = getLLVMType(entry.type);
+        System.out.println("DEBUG: Assignment node has " + node.getChildCount() + " children");
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AST child = node.getChild(i);
+            if (child != null) {
+                System.out.println("DEBUG: Child " + i + " kind: " + child.kind + ", text: " + child.text);
+            } else {
+                System.out.println("DEBUG: Child " + i + " is null");
+            }
+        }
+        
+        AST lvalueNode = node.getChild(0);
+        AST rvalueNode = node.getChild(1);
+        
+        if (lvalueNode == null || rvalueNode == null) {
+            System.out.println("DEBUG: Skipping assignment with null children");
+            return "";
+        }
+        
+        if (lvalueNode.kind == NodeKind.INDEX_NODE) {
+            // Atribuição para elemento de array: arr[i] = value
+            AST arrayNode = lvalueNode.getChild(0);
+            AST indexNode = lvalueNode.getChild(1);
+            
+            if (arrayNode == null || indexNode == null) {
+                System.out.println("DEBUG: Skipping array assignment with null array or index");
+                return "";
+            }
+            
+            // Visita o array e o índice
+            String arrayPtr = visit(arrayNode);
+            String indexValue = visit(indexNode);
+            
+            // Visita o valor a ser atribuído
+            String value = visit(rvalueNode);
+            
+            // Obtém o tipo do elemento
+            GoType arrayType = arrayNode.getAnnotatedType();
+            GoType elementType = arrayType.getElementType();
+            String elementLLVMType = getLLVMType(elementType);
+            
+            // Remove o '*' do final do tipo do array
+            String arrayBaseType = getLLVMType(arrayType).replace("*", "");
+            
+            // Gera getelementptr para obter o ponteiro do elemento
+            String elementPtr = newReg();
+            emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
+                 getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + indexValue);
+            
+            // Armazena o valor no elemento
+            emit("store " + elementLLVMType + " " + value + ", " + elementLLVMType + "* " + elementPtr);
+        } else {
+            // Atribuição normal para variável
+            String varName = lvalueNode.text;
+            SymbolTableEntry entry = symbolTable.peek().get(varName);
+            String pointerName = entry.value;
+            String llvmType = getLLVMType(entry.type);
 
-        String value = visit(node.getChild(1));
-        emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
+            String value = visit(rvalueNode);
+            emit("store " + llvmType + " " + value + ", " + llvmType + "* " + pointerName);
+        }
         return "";
     }
 
@@ -651,13 +747,48 @@ public class GoCodegenVisitor {
         if (entry.isConstant) {
             return entry.value; // Retorna o valor literal diretamente
         } else {
-            // É uma variável, então carrega o valor do ponteiro
-            String pointerName = entry.value;
-            String llvmType = getLLVMType(entry.type);
-            String destReg = newReg();
-            emit(destReg + " = load " + llvmType + ", " + llvmType + "* " + pointerName);
-            return destReg;
+            // Para arrays, retorna o ponteiro diretamente
+            if (entry.type.isArray()) {
+                return entry.value;
+            } else {
+                // Para variáveis simples, carrega o valor do ponteiro
+                String pointerName = entry.value;
+                String llvmType = getLLVMType(entry.type);
+                String destReg = newReg();
+                emit(destReg + " = load " + llvmType + ", " + llvmType + "* " + pointerName);
+                return destReg;
+            }
         }
+    }
+
+    private String visitIndexNode(AST node) {
+        AST arrayNode = node.getChild(0); // Nó do array
+        AST indexNode = node.getChild(1); // Nó do índice
+        
+        // Visita o nó do array para obter seu ponteiro
+        String arrayPtr = visit(arrayNode);
+        
+        // Visita o nó do índice para obter o valor do índice
+        String indexValue = visit(indexNode);
+        
+        // Obtém o tipo do elemento do array
+        GoType arrayType = arrayNode.getAnnotatedType();
+        GoType elementType = arrayType.getElementType();
+        String elementLLVMType = getLLVMType(elementType);
+        
+        // Remove o '*' do final do tipo do array para obter o tipo base
+        String arrayBaseType = getLLVMType(arrayType).replace("*", "");
+        
+        // Gera getelementptr para acessar o elemento
+        String elementPtr = newReg();
+        emit(elementPtr + " = getelementptr inbounds " + arrayBaseType + ", " + 
+             getLLVMType(arrayType) + " " + arrayPtr + ", i64 0, i32 " + indexValue);
+        
+        // Carrega o valor do elemento
+        String elementValue = newReg();
+        emit(elementValue + " = load " + elementLLVMType + ", " + elementLLVMType + "* " + elementPtr);
+        
+        return elementValue;
     }
 
     // --- Literais ---
@@ -675,11 +806,131 @@ public class GoCodegenVisitor {
     }
 
     private String visitStrValNode(AST node) {
-        String strName = createGlobalString(node.text, ".str");
+        String strName = createGlobalString(node.text, ".const.str");
         int strLen = node.text.length() + 1;
         
         String ptrReg = newReg();
         emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
         return ptrReg;
+    }
+
+    // --- Constant Expression Evaluator ---
+
+    private String evaluateConstantExpression(AST node) {
+        if (node == null) return "0";
+
+        switch (node.kind) {
+            case INT_VAL_NODE: return String.valueOf(node.intData);
+            case REAL_VAL_NODE: return String.valueOf((double)node.floatData);
+            case BOOL_VAL_NODE: return node.boolData ? "1" : "0";
+            case STR_VAL_NODE: {
+                String strName = createGlobalString(node.text, ".str");
+                int strLen = node.text.length() + 1;
+                String ptrReg = newReg();
+                emit(ptrReg + " = getelementptr inbounds [" + strLen + " x i8], [" + strLen + " x i8]* " + strName + ", i64 0, i64 0");
+                return ptrReg;
+            }
+            case ID_NODE: {
+                SymbolTableEntry entry = symbolTable.peek().get(node.text);
+                if (entry != null && entry.isConstant) {
+                    return entry.value;
+                }
+                throw new RuntimeException("Undefined constant: " + node.text);
+            }
+            case PLUS_NODE: {
+                String left = evaluateConstantExpression(node.getChild(0));
+                String right = evaluateConstantExpression(node.getChild(1));
+                GoType type = node.getAnnotatedType();
+                if (type.isFloat()) {
+                    double l = Double.parseDouble(left);
+                    double r = Double.parseDouble(right);
+                    return String.valueOf(l + r);
+                } else {
+                    long l = Long.parseLong(left);
+                    long r = Long.parseLong(right);
+                    return String.valueOf(l + r);
+                }
+            }
+            case MINUS_NODE: {
+                String left = evaluateConstantExpression(node.getChild(0));
+                String right = evaluateConstantExpression(node.getChild(1));
+                GoType type = node.getAnnotatedType();
+                if (type.isFloat()) {
+                    double l = Double.parseDouble(left);
+                    double r = Double.parseDouble(right);
+                    return String.valueOf(l - r);
+                } else {
+                    long l = Long.parseLong(left);
+                    long r = Long.parseLong(right);
+                    return String.valueOf(l - r);
+                }
+            }
+            case TIMES_NODE: {
+                String left = evaluateConstantExpression(node.getChild(0));
+                String right = evaluateConstantExpression(node.getChild(1));
+                GoType type = node.getAnnotatedType();
+                if (type.isFloat()) {
+                    double l = Double.parseDouble(left);
+                    double r = Double.parseDouble(right);
+                    return String.valueOf(l * r);
+                } else {
+                    long l = Long.parseLong(left);
+                    long r = Long.parseLong(right);
+                    return String.valueOf(l * r);
+                }
+            }
+            case OVER_NODE: {
+                String left = evaluateConstantExpression(node.getChild(0));
+                String right = evaluateConstantExpression(node.getChild(1));
+                GoType type = node.getAnnotatedType();
+                if (type.isFloat()) {
+                    double l = Double.parseDouble(left);
+                    double r = Double.parseDouble(right);
+                    return String.valueOf(l / r);
+                } else {
+                    long l = Long.parseLong(left);
+                    long r = Long.parseLong(right);
+                    return String.valueOf(l / r);
+                }
+            }
+            case MOD_NODE: {
+                String left = evaluateConstantExpression(node.getChild(0));
+                String right = evaluateConstantExpression(node.getChild(1));
+                long l = Long.parseLong(left);
+                long r = Long.parseLong(right);
+                return String.valueOf(l % r);
+            }
+            case UNARY_MINUS_NODE: {
+                String value = evaluateConstantExpression(node.getChild(0));
+                GoType type = node.getAnnotatedType();
+                if (type.isFloat()) {
+                    double v = Double.parseDouble(value);
+                    return String.valueOf(-v);
+                } else {
+                    long v = Long.parseLong(value);
+                    return String.valueOf(-v);
+                }
+            }
+            case NOT_NODE: {
+                String value = evaluateConstantExpression(node.getChild(0));
+                boolean v = Boolean.parseBoolean(value);
+                return v ? "0" : "1";
+            }
+            case TYPE_CONV_NODE: {
+                String value = evaluateConstantExpression(node.getChild(0));
+                GoType sourceType = node.getChild(0).getAnnotatedType();
+                GoType targetType = node.getAnnotatedType();
+                if (sourceType.isInteger() && targetType.isFloat()) {
+                    long v = Long.parseLong(value);
+                    return String.valueOf((double)v);
+                } else if (sourceType.isFloat() && targetType.isInteger()) {
+                    double v = Double.parseDouble(value);
+                    return String.valueOf((long)v);
+                }
+                return value;
+            }
+            default:
+                throw new RuntimeException("Unsupported constant expression: " + node.kind);
+        }
     }
 }
