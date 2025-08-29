@@ -6,6 +6,5 @@ func funcaoComNomeMuitoLongo() {
 func main() {
     // Chamadas simples
     println("hello")
-    len("world")
     funcaoComNomeMuitoLongo()
 }
