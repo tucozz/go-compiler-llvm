@@ -1,2 +1,0 @@
-Expected output: No semantic errors
-Test: Basic function declaration and call

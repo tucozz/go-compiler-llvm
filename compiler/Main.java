@@ -47,7 +47,7 @@ public class Main {
         
         String mode = compileMode ? "Compilação (LLVM)" : "Interpretação";
         System.out.println("Go Compiler - Modo: " + mode);
-        System.out.println("Ficheiro: " + filePath);
+        System.out.println("Arquivo: " + filePath);
         System.out.println();
 
         try {

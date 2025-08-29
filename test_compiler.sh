@@ -54,7 +54,7 @@ for GO_FILE in $(find "$TEST_DIR" -type f -name "*.go"); do
 
     # --- Passo 1: Compilar .go para .ll ---
     echo "   1. Gerando LLVM IR (.ll)..."
-    CMD_MAKE="make rc FILE=\"--llvm $GO_FILE\""
+    CMD_MAKE="make rcf FILE=\"--llvm $GO_FILE\""
     if [ "$VERBOSE" = true ]; then
         echo -e "      ${CYAN}Executando:${NC} $CMD_MAKE"
     fi
