@@ -1,54 +1,77 @@
-# Comando do compilador Java
-JAVAC=javac
-# Comando da JVM
-JAVA=java
-# ROOT é a raiz dos diretórios com todos os roteiros de laboratórios
-YEAR=$(shell pwd | grep -o '20..-.')
-ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
-# Caminho para o JAR do ANTLR em labs/tools
-ANTLR_PATH=$(ROOT)tools/antlr-4.13.2-complete.jar
-# Opção de configuração do CLASSPATH para o ambiente Java
-CLASS_PATH_OPTION=-cp .:$(ANTLR_PATH)
-# Configuração do comando de compilação do ANTLR
-ANTLR4=$(JAVA) -jar $(ANTLR_PATH)
-# Configuração do ambiente de teste do ANTLR
-GRUN=$(JAVA) $(CLASS_PATH_OPTION) org.antlr.v4.gui.TestRig
-# Diretório para os arquivos gerados
-GEN_DIR := $(dir $(GRAMMAR))
-GEN_PATH := $(GEN_DIR)lexer
+# Comandos do Java
+JAVAC = javac
+JAVA = java
 
-# Espera-se que a variável GRAMMAR seja definida na linha de comando: make GRAMMAR=path/Exemplo01.g
-ifndef GRAMMAR
-$(error É necessário passar a variável GRAMMAR, ex: make GRAMMAR=subdir/Exemplo01.g)
-endif
+# Caminho para o JAR do ANTLR (relativo à raiz do projeto)
+ANTLR_JAR = tools/antlr-4.13.2-complete.jar
 
-# Nome base da gramática (sem path e sem extensão)
-GRAMMAR_NAME=$(basename $(notdir $(GRAMMAR)))
+# ... (Seções de comandos Java e ANTLR_JAR permanecem as mesmas)
 
-# Executa o ANTLR e o compilador Java
-all: antlr javac
-	@echo "Done."
+# Nome da gramática principal para o pacote Java.
+GRAMMAR_PACKAGE_NAME = Go_Parser
 
-# Executa o ANTLR para compilar a gramática
-antlr:
-	@cd $(GEN_DIR) && $(ANTLR4) -o lexer $(notdir $(GRAMMAR))
+# Diretório base onde as gramáticas estão
+GRAMMAR_BASE_DIR = grammar
 
-# Executa o javac para compilar os arquivos gerados
+# Caminho completo para o diretório de saída das classes Java geradas pelo ANTLR
+OUTPUT_JAVA_DIR = $(GRAMMAR_BASE_DIR)/$(GRAMMAR_PACKAGE_NAME)
+
+# Diretório onde você colocou seu código Java manual (SymbolTable, GoSemanticAnalyzer, Main, etc.)
+COMPILER_SRC_DIR = compiler
+
+# Diretório para onde as classes .class serão compiladas
+COMPILER_BIN_DIR = bin
+
+# Classpath completo para javac e java
+# Inclui: diretório atual, ANTLR JAR, diretório base das gramáticas (para encontrar 'Go_Parser' pacote),
+# e o diretório de saída das classes compiladas (.class)
+CLASSPATH = .:$(ANTLR_JAR):$(GRAMMAR_BASE_DIR):$(OUTPUT_JAVA_DIR):$(COMPILER_BIN_DIR)
+# Comando ANTLR4 (definido para ser executado DA RAIZ do projeto)
+ANTLR4 = $(JAVA) -jar $(ANTLR_JAR)
+
+# Nomes dos arquivos de gramática (sem o caminho, pois o cd vai para grammar/)
+LEXER_GRAMMAR_NAME = Go_Lexer.g
+PARSER_GRAMMAR_NAME = Go_Parser.g
+
+# Regra principal
+all: antlr javac compiler_javac
+	@echo "Compilação concluída."
+
+# ... (Regras 'antlr', 'antlr-lexer', 'antlr-parser' permanecem as mesmas que te passei na última resposta)
+antlr: antlr-lexer antlr-parser
+
+antlr-lexer:
+	@mkdir -p $(OUTPUT_JAVA_DIR)
+	cd $(GRAMMAR_BASE_DIR) && $(JAVA) -jar ../$(ANTLR_JAR) -no-listener -package $(GRAMMAR_PACKAGE_NAME) -o $(GRAMMAR_PACKAGE_NAME) $(LEXER_GRAMMAR_NAME)
+
+antlr-parser: antlr-lexer
+	cd $(GRAMMAR_BASE_DIR) && $(JAVA) -jar ../$(ANTLR_JAR) -no-listener -visitor -package $(GRAMMAR_PACKAGE_NAME) -o $(GRAMMAR_PACKAGE_NAME) $(PARSER_GRAMMAR_NAME)
+
+# Compila os arquivos Java gerados pelo ANTLR
 javac:
-	@$(JAVAC) $(CLASS_PATH_OPTION) $(GEN_PATH)/*.java
+	@mkdir -p $(OUTPUT_JAVA_DIR)
+	$(JAVAC) -cp $(CLASSPATH) $(OUTPUT_JAVA_DIR)/*.java
 
-# Executa o lexer. Comando: $ make run GRAMMAR=subdir/Exemplo01.g FILE=arquivo_de_teste
-run:
-	@cd $(GEN_PATH) && $(GRUN) $(GRAMMAR_NAME) tokens -tokens $(FILE)
+# NOVO: Regra para compilar o seu código Java manual (tabelas, visitor, Main)
+compiler_javac: javac
+	@mkdir -p $(COMPILER_BIN_DIR)
+	$(JAVAC) -cp $(CLASSPATH) -d $(COMPILER_BIN_DIR) $(COMPILER_SRC_DIR)/*.java $(COMPILER_SRC_DIR)/tables/*.java $(COMPILER_SRC_DIR)/checker/*.java $(COMPILER_SRC_DIR)/typing/*.java
 
-# Remove os arquivos gerados pelo ANTLR
+# Executa o compilador (Main.java) - compila tudo antes
+# Exemplo de uso: make run_compiler FILE=inputs/exemplo.go
+rc: all # Depende de 'all' para garantir que tudo esteja compilado
+	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
+
+# Executa o compilador rapidamente (assume que já está compilado)
+# Para uso em scripts de teste em lote
+# Exemplo de uso: make run_compiler_fast FILE=inputs/exemplo.go
+rcf:
+	$(JAVA) -cp $(CLASSPATH) compiler.Main $(FILE)
+
+# Limpa todos os arquivos gerados
 clean:
-	@rm -rf $(GEN_PATH)
+	@rm -rf $(OUTPUT_JAVA_DIR)
+	@rm -f $(GRAMMAR_BASE_DIR)/*.tokens
+	@rm -f $(GRAMMAR_BASE_DIR)/*.interp
+	@rm -rf $(COMPILER_BIN_DIR) # Adicionado para limpar os binários do seu compilador
 
-# Torna os scripts executáveis
-fix-permissions:
-	@chmod +x generate_outputs.sh test_diff.sh
-
-test: fix-permissions
-	@./generate_outputs.sh
-	@./test_diff.sh

@@ -1,0 +1,2 @@
+Expected output: SEMANTIC ERROR - function 'duplicateFunction' already declared
+Test: Function redeclaration error

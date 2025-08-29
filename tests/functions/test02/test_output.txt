@@ -1,0 +1,2 @@
+Expected output: No semantic errors
+Test: Functions with multiple parameters and different return types

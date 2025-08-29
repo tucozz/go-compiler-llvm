@@ -1,24 +1,40 @@
 lexer grammar Go_Lexer;
 
-WS : [ \t\n]+ -> skip ;
+// Whitespace
+WS : [ \t\n\r]+ -> skip ;
 
-IF       : 'if' ;
-ELSEIF   : 'else if' ;
-ELSE     : 'else' ;
-SWITCH   : 'switch' ;
-CASE     : 'case' ;
-DEFAULT  : 'default' ;
-FOR      : 'for' ;
-CONTINUE : 'continue' ;
+// Comments
+COMMENT_A     : '//' ~[\r\n]* -> skip ;
+COMMENT_B     : '/*' ~[*/]* '*/' -> skip ;
+
+// Keywords
 BREAK    : 'break' ;
-FALLT    : 'fallthrough' ;
-RANGE    : 'range' ;
-
-FUNC    : 'func' ;
-VAR     : 'var' ;
+CASE     : 'case' ;
+CHAN    : 'chan' ;
 CONST   : 'const' ;
-TYPE    : 'type' ;
+CONTINUE : 'continue' ;
+DEFAULT  : 'default' ;
+DEFER   : 'defer' ;
+ELSE     : 'else' ;
+FALLT    : 'fallthrough' ;
+FOR      : 'for' ;
+FUNC    : 'func' ;
+GO      : 'go' ;
+GOTO    : 'goto' ;
+IMPORT  : 'import' ;
+IF       : 'if' ;
+INTERFACE : 'interface' ;
+MAP     : 'map' ;
+PACKAGE : 'package' ;
+RANGE    : 'range' ;
+RETURN   : 'return' ;
+SELECT  : 'select' ;
 STRUCT  : 'struct' ;
+SWITCH   : 'switch' ;
+TYPE    : 'type' ;
+VAR     : 'var' ;
+
+// Tipos primitivos do Go
 INT     : 'int' ;
 INT8    : 'int8' ;
 INT16   : 'int16' ;
@@ -33,47 +49,49 @@ BOOL    : 'bool' ;
 STRING  : 'string' ;
 FLOAT32 : 'float32' ;
 FLOAT64 : 'float64' ;
-
-ASSIGN   : '=' ;
-S_ASSIGN : ':=' ;
-EQUALS   : '==' ;
-NOTEQUAL : '!=' ;
-GTHAN    : '>' ;
-LTHAN    : '<' ;
-GETHAN   : '>=' ;
-LETHAN   : '<=' ;
-AND      : '&&' ;
-OR       : '||' ;
-NOT      : '!' ;
+BYTE    : 'byte' ;
+RUNE    : 'rune' ;
 KW_TRUE  : 'true' ;
 KW_FALSE : 'false' ;
 
-PLUS      : '+' ;
-MINUS     : '-' ;
-TIMES     : '*' ;
-OVER      : '/' ;
-MOD       : '%' ;
-INC       : '++' ;
-DEC       : '--' ;
-PAR_INT   : '(' ;
-PAR_END   : ')' ;
-S_BRA_INT : '[' ; 
+// Operadores e Pontuação
+S_ASSIGN : ':=' ;
+OR       : '||' ;
+AND      : '&&' ;
+EQUALS   : '==' ;
+NOTEQUAL : '!=' ;
+LETHAN   : '<=' ;
+GETHAN   : '>=' ;
+LTHAN    : '<' ;
+GTHAN    : '>' ;
+PLUS     : '+' ;
+MINUS    : '-' ;
+INC      : '++' ;
+DEC      : '--' ;
+TIMES    : '*' ;
+OVER     : '/' ;
+MOD      : '%' ;
+ASSIGN   : '=' ;
+NOT      : '!' ;
+PAR_INT  : '(' ;
+PAR_END  : ')' ;
+S_BRA_INT: '[' ;
 S_BRA_END : ']' ;
 C_BRA_INT : '{' ;
 C_BRA_END : '}' ;
 SEMICOLON : ';' ;
+COLON     : ':' ;
 COMMA     : ',' ;
+DOT       : '.' ;
 
-STRINGF       : '"' ~["]* '"' ;
-ID            : [a-zA-Z_][a-zA-Z0-9_]* ;
-COMMENT_A     : '//' ~[\n]* ;
-COMMENT_B     : '/*' ~[*/]* '*/';
-STRUCT_ACCESS : ID ('.' ID)* ;
+// Literais básicos simplificados
+INT_LIT : DIGITS | '0b' BINDIGITS | '0o' OCTDIGITS | '0x' HEXDIGITS | '0B' BINDIGITS | '0O' OCTDIGITS | '0X' HEXDIGITS ;
+FLOAT_LIT : DIGITS '.' DIGITS | DIGITS '.' DIGITS [eE] [+-]? DIGITS | DIGITS [eE] [+-]? DIGITS | '0x' HEXDIGITS '.' HEXDIGITS 'p' [+-]? DIGITS | '0X' HEXDIGITS '.' HEXDIGITS 'P' [+-]? DIGITS ;
+STRING_LIT : '"' ( ~["\\\r\n] | '\\' [abfnrtv\\"'0] | '\\x' [0-9a-fA-F] [0-9a-fA-F] )* '"' ;
 
-
-fragment DIGITS : [0-9]+ ;
-
-POS_INT  : DIGITS ;
-NEG_INT  : '-' DIGITS;
-POS_REAL : DIGITS '.' DIGITS ;
-NEG_REAL : '-' DIGITS '.' DIGITS ;
+// Regras básicas conforme solicitado
+ID : [a-zA-Z_][a-zA-Z0-9_]* ;
+DIGITS : [0-9]+ ; 
+HEXDIGITS : [0-9a-fA-F]+ ; 
+BINDIGITS : [0-1]+ ; 
+OCTDIGITS : [0-7]+ ;

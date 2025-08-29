@@ -1,96 +1,169 @@
-# go-compiler-llvm
+# Compilador para Subset da Linguagem Go
 
-## Repositório para o trabalho da disciplina de Compiladores.
-Nome dos integrantes:
-Arthur Estefanato Lopes, Gabriel Nascimento Oliveira, Pedro Henrique Bravim Duarte.
+## 1. Visão Geral
 
-## Dependências
+Este projeto acadêmico apresenta um compilador para um subset da linguagem de programação Go. A ferramenta foi desenvolvida em Java, utilizando o ANTLR para a análise léxica e sintática, e é capaz de operar em dois modos distintos:
 
-Crie um diretório "tools" dentro da raíz e copie o arquivo jar da biblioteca antlr para lá.
-O link direto de download para a versão 4.13.2 é https://www.antlr.org/download/antlr-4.13.2-complete.jar.
+1.  **Modo Interpretador**: Executa o código-fonte diretamente, passo a passo, após a análise semântica. Ideal para testes rápidos e depuração.
+2.  **Modo Compilador**: Gera código intermediário no formato LLVM IR (`.ll`), que pode ser posteriormente compilado para um executável nativo, transformando o código Go em um programa de máquina.
 
-## Compilação
+O compilador realiza as etapas clássicas de análise léxica, sintática e semântica, construindo uma Árvore Sintática Abstrata (AST) e utilizando tabelas de símbolos para garantir a correção do código.
 
-Antes de compilar, centifique-se de que o Makefile está coerente com a versão do antlr que você está usando (modificando a variável ANTLR_PATH).
+---
 
-Após isso, rode o comando:
+## 2. Pré-requisitos
 
-`make GRAMMAR=grammar/Go_Lexer.g`
+Para compilar e executar este projeto, os seguintes componentes são necessários:
 
-## Execução
+* **Java Development Kit (JDK)**: Versão 11 ou superior.
+* **ANTLR v4**: A ferramenta (`antlr-4.13.2-complete.jar` já inclusa no diretório `tools/`) e as bibliotecas de runtime.
+* **GNU Make**: Para facilitar o processo de compilação do projeto.
+* **LLVM e Clang**: Necessários para o modo compilador, para transformar o código `.ll` gerado em um executável.
 
-Rode o comando para a execução do programa compilado:
+---
 
-`make run GRAMMAR=grammar/Go_Lexer.g`
+## 3. Como Executar
 
-## Inputs
+O projeto utiliza um `Makefile` para simplificar a compilação e execução.
 
-Para rodar o programa usando inputs, modifique a variavel FILE:
+### 3.1. Compilando o Projeto
 
-`make run GRAMMAR=grammar/Go_Lexer.g FILE=../inputs/<nome_do_input>.go`
+Antes de qualquer coisa, compile o código-fonte do compilador:
 
-Note que o arquivo deve ser acessado com ../ já que o programa roda a partir do diretório auxiliar lexer.
+```bash
+make
+```
 
+### 3.2. Modo Interpretador
 
-## 1. Introdução
+Para analisar e executar um arquivo `.go` diretamente:
 
-A melhor forma de aprender sobre compiladores é construindo um! Esse é o objetivo do trabalho prático da disciplina: um projeto de desenvolvimento de um compilador, realizado ao longo de todo o curso, permitindo o estudo do conteúdo de forma prática.
+```bash
+make rc FILE="caminho/para/seu/arquivo.go"
+```
 
-## 2. Requisitos mínimos do projeto e simplificações
-Dado que os projetos envolvem criar compiladores para linguagens de programação (LPs) reais, é certo que será necessário realizar várias simplificações dos aspectos da linguagem fonte, visto que praticamente todas as LPs possuem uma grande quantidade de funcionalidades.
+**Exemplo:**
 
-### Elementos mínimos que o compilador deve tratar corretamente:
+```bash
+make rc FILE="valid_tests/declarations/test1.go"
+```
 
-- Operações aritméticas e de comparação básicas (`+`, `*`, `<`, `==`, etc).
-- Comandos de atribuição.
-- Execução de blocos sequenciais de código.
-- Pelo menos uma estrutura de:
-  - Escolha: `if-then-else`
-  - Repetição: `while`, `for`, etc.
-- Declaração e manipulação de tipos básicos:
-  - `int`
-  - `real`
-  - `string`
-  - `bool` (quando aplicável à LP)
-- Declaração e manipulação de pelo menos um tipo composto:
-  - Vetores
-  - Listas (como em Python)
-- Declaração e execução correta de chamadas de função com número fixo de parâmetros (não precisa suportar *varargs*).
-- Sistema de tipos que trata adequadamente todos os tipos permitidos.
-- Operações de entrada e saída (IO) básicas utilizando `stdin` e `stdout`, para permitir testes.
+O terminal exibirá o relatório da análise semântica, a AST em formato DOT (para visualização) e, em seguida, a saída da execução do programa.
 
-### Elementos que **não** precisam ser considerados no projeto (Objetivos extras):
+### 3.3. Modo Compilador (Go -> LLVM -> Executável)
 
-- Compilação separada:
-  - `imports`, módulos, etc.
-  
-- Operações bitwise:
-  - Shifts (esquerda e direita)
-  - Operações bit a bit (`&`, `|`, `^`, etc.)
-  
-- Chamadas de funções não convencionais:
-  - Funções com `varargs`
-  - Parâmetros com valores default
-  - Chamadas com nomes de parâmetros
-  - *Packing/unpacking*
+Este é um processo de três etapas para transformar seu código `.go` em um programa executável.
 
-- Anotações de programas:
-  - `@decorators` em Python e Java
+**Passo 1: Gerar o arquivo LLVM IR (`.ll`)**
 
-- Comentários estruturados:
-  - Exemplo: JavaDoc e similares
+Use a flag `--llvm` para instruir o compilador a gerar o código intermediário.
 
-- Tratamento de exceções
+```bash
+make rc FILE="--llvm caminho/para/seu/arquivo.go"
+```
 
-- Uso de asserções (`assert`)
+**Exemplo:**
+Suponha que você queira compilar `valid_tests/functions/test1.go`.
 
-- Pré-processamento e macros:
-  - `#define`, `#include` (em C)
-  - Construções similares em outras linguagens
+```bash
+make rc FILE="--llvm valid_tests/functions/test1.go"
+```
 
-- Concorrência ou paralelismo:
-  - `async`, `yield` (Python)
-  - `synchronized` (Java)
+Isso criará um arquivo chamado `valid_tests/functions/test1.ll`.
 
-- Gerência avançada de memória:
-  - *Garbage collection* e outros mecanismos complexos
+**Passo 2: Compilar o `.ll` para Assembly (`.s`)**
+
+Use o compilador estático do LLVM (`llc`) para converter o código intermediário em assembly nativo da sua máquina.
+
+```bash
+llc valid_tests/functions/test1.ll -o test1.s
+```
+
+**Passo 3: Criar o Executável**
+
+Use o `clang` para montar e lincar o arquivo assembly, criando o executável final.
+
+```bash
+clang test1.s -o meu_programa
+```
+
+**Passo 4: Executar o Programa**
+
+Agora você pode executar seu programa compilado!
+
+```bash
+./meu_programa
+```
+
+---
+
+## 4. Testes Automatizados em Lote
+
+Para validar a robustez do compilador, foi criado um script de teste que automatiza o workflow de compilação para todos os casos de teste.
+
+### 4.1. Como Usar
+
+O script `test_compiler.sh` percorre recursivamente um diretório, tenta compilar cada arquivo `.go` e reporta quais falharam.
+
+**1. Dê permissão de execução ao script (apenas uma vez):**
+
+```bash
+chmod +x test_compiler.sh
+```
+
+**2. Execute o script, passando o diretório de testes:**
+
+```bash
+./test_compiler.sh valid_tests
+```
+
+O script exibirá uma mensagem de sucesso para cada arquivo compilado corretamente e, para os que falharem, mostrará em qual etapa o erro ocorreu (`make`, `llc` ou `clang`) e o log de erro correspondente.
+
+**Exemplo de Saída:**
+
+```
+🚀 Iniciando o teste completo do compilador no diretório: valid_tests
+============================================================
+✅ Sucesso: valid_tests/declarations/test1.go
+✅ Sucesso: valid_tests/declarations/test2.go
+
+▶️  Testando arquivo: valid_tests/expressions/test3.go
+   ❌ Falhou (Passo 2: llc): Erro ao gerar o arquivo assembly.
+      --- Log de Erro ---
+      llc: error: llc: valid_tests/expressions/test3.ll:10:1: error: expected instruction opcode
+      entry:
+      ^
+      -------------------
+
+============================================================
+🏁 Testes concluídos!
+
+Resumo: 80 de 81 testes passaram.
+
+❌ Arquivos que falharam:
+  - valid_tests/expressions/test3.go
+```
+
+---
+
+## 5. Cobertura dos Casos de Teste
+
+O projeto inclui um conjunto abrangente de casos de teste, divididos em `valid_tests` (código que deve compilar com sucesso) e `invalid_tests` (código que deve ser rejeitado pelo analisador semântico).
+
+A cobertura inclui:
+
+* **Declarações**: Testes para `var`, `const` e declarações curtas (`:=`).
+* **Tipos**: Verificação de tipos numéricos (`int`, `float64`), `string` e `bool`.
+* **Expressões**: Operações aritméticas, lógicas e de comparação.
+* **Literais**: Validação de literais inteiros, de ponto flutuante, strings e booleanos.
+* **Estruturas de Controle**: Testes para `if-else` e laços `for` (clássico, "while" e infinito).
+* **Funções**: Declaração, chamadas, parâmetros e múltiplos retornos.
+* **Escopo**: Verificação de escopo de variáveis em blocos, laços e funções.
+* **Arrays**: Declaração, acesso a índices e atribuição.
+* **Funções Built-in**: Testes extensivos para `println` e `scanln` com diferentes tipos de argumentos.
+* **Checagem de Erros**: Um conjunto de testes em `invalid_tests` para garantir que o compilador detecta corretamente erros semânticos, como:
+    * Redeclaração de variáveis.
+    * Uso de variáveis não declaradas.
+    * Incompatibilidade de tipos em atribuições e operações.
+    * Número incorreto de argumentos em chamadas de função.
+    * Uso de `break`/`continue` fora de laços.

@@ -1,0 +1,9 @@
+01: Testing function declaration, parameters, return types and function calls
+
+02: Testing function with multiple parameters and return value
+
+03: Testing function calls with arguments and parameter validation
+
+04: Testing function redeclaration errors
+
+05: Testing function calls with wrong number of arguments
